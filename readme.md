@@ -324,6 +324,30 @@ Para rodar os testes unitários dos handlers:
 go test -v ./internal/handlers/...
 ```
 
+## 🏗️ Arquitetura
+
+Para visualizar a arquitetura completa do sistema, consulte nossa documentação técnica:
+
+### 📋 [Documentação Arquitetural Completa](./docs/README.md)
+
+Inclui diagramas detalhados de:
+- **Arquitetura Geral do Sistema**: Visão macro com todas as camadas
+- **Fluxo de Autenticação**: Processo de login/registro com JWT
+- **Modelo de Dados (ERD)**: Estrutura do banco PostgreSQL
+- **Fluxo de Requisições**: Como as requests são processadas
+- **Padrões Arquiteturais**: Clean Architecture e Repository Pattern
+
+### 🎯 Resumo Arquitetural
+
+**Padrão Principal**: Clean Architecture / Hexagonal
+- **Camadas bem separadas**: Handlers → Repositories → Database
+- **Inversão de dependências**: Interfaces para testabilidade
+- **Tecnologias**: Go + Gorilla Mux + PostgreSQL + JWT
+
+```
+Cliente → Router → Middleware → Handler → Repository → Database
+```
+
 ### 📄 Licença
 
 GNU-General-Public-License-v3.0
