@@ -2,9 +2,9 @@
 
 Bem-vindo à documentação técnica do projeto Go Cart API. Este diretório contém toda a documentação arquitetural e técnica do sistema.
 
-## 📁 Arquivos de Documentação
+##  Arquivos de Documentação
 
-### 🏗️ [architecture.md](./architecture.md)
+###  [architecture.md](./architecture.md)
 Documentação completa da arquitetura do sistema, incluindo:
 
 - **Diagrama de Arquitetura Geral**: Visão macro do sistema com todas as camadas
@@ -15,7 +15,7 @@ Documentação completa da arquitetura do sistema, incluindo:
 - **Tecnologias Utilizadas**: Stack tecnológico completo
 - **Padrões Arquiteturais**: Design patterns implementados
 
-## 🎯 Como Visualizar os Diagramas
+##  Como Visualizar os Diagramas
 
 Os diagramas estão criados em formato **Mermaid**, que pode ser visualizado em:
 
@@ -30,7 +30,7 @@ Os diagramas são renderizados automaticamente quando você visualiza os arquivo
 ### Documentação Online
 - GitBook, Notion, ou qualquer plataforma que suporte Mermaid
 
-## 🧩 Visão Geral da Arquitetura
+##  Visão Geral da Arquitetura
 
 Este projeto segue os princípios de **Clean Architecture** com as seguintes características:
 
@@ -39,7 +39,7 @@ Este projeto segue os princípios de **Clean Architecture** com as seguintes car
 - **Testabilidade**: Estrutura preparada para testes unitários e integração
 - **Escalabilidade**: Arquitetura que facilita crescimento e manutenção
 
-## 🚀 Stack Tecnológico Principal
+##  Stack Tecnológico Principal
 
 - **Backend**: Go 1.23+ com Gorilla Mux
 - **Database**: PostgreSQL via Supabase
@@ -47,7 +47,7 @@ Este projeto segue os princípios de **Clean Architecture** com as seguintes car
 - **Deploy**: Render/Heroku
 - **Testes**: Go testing + testify
 
-## 📚 Para Desenvolvedores
+##  Para Desenvolvedores
 
 Se você é novo no projeto, recomendamos a leitura na seguinte ordem:
 
@@ -56,7 +56,7 @@ Se você é novo no projeto, recomendamos a leitura na seguinte ordem:
 3. **Código fonte** começando por `cmd/main.go`
 4. **Testes** em `internal/handlers/*_test.go`
 
-## 🔄 Manutenção da Documentação
+##  Manutenção da Documentação
 
 Esta documentação deve ser atualizada sempre que:
 - Novos componentes forem adicionados
@@ -64,7 +64,7 @@ Esta documentação deve ser atualizada sempre que:
 - Novas dependências forem incluídas
 - Padrões de desenvolvimento mudarem
 
-## 📞 Suporte
+##  Suporte
 
 Para dúvidas sobre a arquitetura ou documentação:
 - Abra uma issue no repositório
