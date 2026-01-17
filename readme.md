@@ -71,6 +71,8 @@ curl -X POST http://localhost:4444/api/orders -H "Authorization: Bearer $TOKEN"
 
 ---
 
+[Link para Documentação Swagger Antiga (Desatualizada)](https://app.swaggerhub.com/apis-docs/bulletcloud/Estoque/1.1) 
+
 ##  Documentação da API
 
 | Módulo | Método | Endpoint | Protegido |
@@ -81,7 +83,8 @@ curl -X POST http://localhost:4444/api/orders -H "Authorization: Bearer $TOKEN"
 | **Cart** | POST | `/api/cart/items` | Yes |
 | **Orders** | GET | `/api/orders` | Yes |
 
-> [Consulte a Documentação Arquitetural Detalhada](https://www.google.com/search?q=./docs/README.md) para diagramas de ERD e fluxos de autenticação.
+### 📋 [Documentação Arquitetural Completa](./docs/README.md) 
+> para diagramas de ERD e fluxos de autenticação.
 
 ---
 
