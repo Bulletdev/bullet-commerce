@@ -14,7 +14,7 @@ graph LR
         G[GET /api/categories/{id}]
     end
     
-    subgraph "Rotas Protegidas 🔒"
+    subgraph "Rotas Protegidas "
         subgraph "Users"
             H[GET /api/users/me]
             I[GET /api/users/{id}/addresses]
@@ -63,31 +63,31 @@ graph LR
     class T,U,V,W,X,Y,Z,AA,BB commerce
 ```
 
-## 🔄 Fluxo do E-commerce
+##  Fluxo do E-commerce
 
 ```mermaid
 graph TD
     A[👤 Usuário acessa sistema] --> B{Já registrado?}
-    B -->|Não| C[📝 Registro - POST /api/auth/register]
-    B -->|Sim| D[🔑 Login - POST /api/auth/login]
+    B -->|Não| C[ Registro - POST /api/auth/register]
+    B -->|Sim| D[ Login - POST /api/auth/login]
     
-    C --> E[✅ Token JWT gerado]
+    C --> E[ Token JWT gerado]
     D --> E
     
-    E --> F[🏪 Navegar produtos - GET /api/products]
-    F --> G[🛒 Adicionar ao carrinho - POST /api/cart/items]
+    E --> F[ Navegar produtos - GET /api/products]
+    F --> G[ Adicionar ao carrinho - POST /api/cart/items]
     
     G --> H{Continuar comprando?}
     H -->|Sim| F
-    H -->|Não| I[📍 Verificar endereços - GET /api/users/me/addresses]
+    H -->|Não| I[ Verificar endereços - GET /api/users/me/addresses]
     
     I --> J{Tem endereço?}
-    J -->|Não| K[➕ Adicionar endereço - POST /api/users/me/addresses]
-    J -->|Sim| L[📋 Revisar carrinho - GET /api/cart]
+    J -->|Não| K[ Adicionar endereço - POST /api/users/me/addresses]
+    J -->|Sim| L[ Revisar carrinho - GET /api/cart]
     
     K --> L
-    L --> M[💳 Criar pedido - POST /api/orders]
-    M --> N[📦 Acompanhar pedidos - GET /api/orders]
+    L --> M[ Criar pedido - POST /api/orders]
+    M --> N[ Acompanhar pedidos - GET /api/orders]
     
     %% Styling
     classDef start fill:#c8e6c9
