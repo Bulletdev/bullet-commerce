@@ -1,6 +1,6 @@
 # Quick Architecture Reference
 
-## 🏗️ High-Level Architecture
+##  High-Level Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -40,7 +40,7 @@
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-## 🔧 Key Components
+##  Key Components
 
 | Component | Technology | Purpose |
 |-----------|------------|---------|
@@ -50,7 +50,7 @@
 | **Repositories** | pgx/v5 | Database abstraction layer |
 | **Database** | PostgreSQL | Data persistence (via Supabase) |
 
-## 📊 Data Flow
+##  Data Flow
 
 ```
 Request → Router → Auth Middleware → Handler → Repository → Database
@@ -58,7 +58,7 @@ Request → Router → Auth Middleware → Handler → Repository → Database
 Response ← JSON ← Processing ← Query Result ← PostgreSQL
 ```
 
-## 🚀 Deployment
+##  Deployment
 
 - **Platform**: Render/Heroku
 - **Database**: Supabase (PostgreSQL)
