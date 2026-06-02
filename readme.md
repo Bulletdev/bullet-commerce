@@ -23,8 +23,8 @@
 ╔══════════════════════════════════════════════════════════════════════════════╗
 ║  go-cart-api — Go 1.23 · Clean Architecture · RESTful                        ║
 ╠══════════════════════════════════════════════════════════════════════════════╣
-║  Production-ready e-commerce API. PIX + Stripe · NF-e · Correios/Melhor      ║
-║  Envio · Argon2id · Circuit breaker · ACID transactions · LGPD compliant     ║
+║  Production-ready e-commerce API. PIX + Stripe · NF-e · Argon2id             ║
+║  Correios/MelhorEnvio · Circuit breaker · ACID transactions · LGPD compliant ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 ```
 
@@ -692,6 +692,7 @@ docker run -p 4445:4445 --env-file .env go-cart-api
 - No comments explaining WHAT the code does — name things clearly instead
 
 ---
+<div align="center">
 
 ## 12 · License
 
@@ -708,10 +709,9 @@ docker run -p 4445:4445 --env-file .env go-cart-api
 
 ---
 
-<div align="center">
 
 ```
-▓▒░ · go-cart-api · michaelbullet.com · ░▒▓
+▓▒░ · go-cart-api · michaelbullet.dev · ░▒▓
 ```
 
 </div>
