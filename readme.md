@@ -10,8 +10,9 @@
 
 <div align="center">
 
-[![CodeQL Advanced](https://github.com/Bulletdev/bullet-cloud-api/actions/workflows/codeql.yml/badge.svg)](https://github.com/Bulletdev/bullet-cloud-api/actions/workflows/codeql.yml)
-[![Go](https://github.com/Bulletdev/bullet-cloud-api/actions/workflows/go.yml/badge.svg)](https://github.com/Bulletdev/bullet-cloud-api/actions/workflows/go.yml)
+[![CodeQL Advanced](https://github.com/Bulletdev/go-cart-api/actions/workflows/codeql.yml/badge.svg)](https://github.com/Bulletdev/go-cart-api/actions/workflows/codeql.yml)
+[![Go](https://github.com/Bulletdev/go-cart-api/actions/workflows/go.yml/badge.svg)](https://github.com/Bulletdev/go-cart-api/actions/workflows/go.yml)
+[![Security Scan](https://github.com/Bulletdev/go-cart-api/actions/workflows/security.yml/badge.svg)](https://github.com/Bulletdev/go-cart-api/actions/workflows/security.yml)
 ![Go Version](https://img.shields.io/github/go-mod/go-version/Bulletdev/go-cart-api?color=00ADD8&labelColor=000000)
 ![License](https://img.shields.io/badge/license-GPL--3.0-blue)
 
@@ -105,19 +106,19 @@ migrate -database ${DATABASE_URL} -path internal/database/migrations up
 
 # Start server
 go run cmd/main.go
-# → listening on :4445 (or $PORT)
+# → listening on :4444 (or $PORT)
 
 # Health check
-curl http://localhost:4445/health          # liveness
-curl http://localhost:4445/ready           # readiness (db.Ping)
+curl http://localhost:4444/health          # liveness
+curl http://localhost:4444/ready           # readiness (db.Ping)
 
 # Register and get token
-TOKEN=$(curl -s -X POST http://localhost:4445/api/auth/login \
+TOKEN=$(curl -s -X POST http://localhost:4444/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"you@example.com","password":"your_password"}' | jq -r .token)
 
 # List products (paginated)
-curl "http://localhost:4445/api/products?limit=20&offset=0"
+curl "http://localhost:4444/api/products?limit=20&offset=0"
 ```
 
 <details>
@@ -133,7 +134,7 @@ docker exec go-cart-api migrate -database ${DATABASE_URL} \
 
 | Container | Port | Role |
 |---|---|---|
-| go-cart-api | 4445 | Go API |
+| go-cart-api | 4444 | Go API |
 | postgres | 5432 | PostgreSQL 17 |
 
 </details>
@@ -282,8 +283,8 @@ migrate -database "${DATABASE_URL}" -path internal/database/migrations up
 **5. Run:**
 ```bash
 go run cmd/main.go
-# API → http://localhost:4445
-# Health → http://localhost:4445/health
+# API → http://localhost:4444
+# Health → http://localhost:4444/health
 ```
 
 **6. Seed (optional):**
@@ -471,7 +472,7 @@ JWT_SECRET=your-256-bit-secret
 JWT_TTL=24h
 
 # ── Server ────────────────────────────────────────────────────────────────────
-PORT=4445
+PORT=4444
 ALLOWED_ORIGINS=https://yourstore.com,http://localhost:8880
 LOG_LEVEL=info                         # debug | info | warn | error
 
@@ -551,7 +552,14 @@ go tool cover -html=coverage.out
 [✓] ACID transactions — no partial state on concurrent order creation
 [✓] Idempotent webhooks — UPDATE … WHERE payment_status='pending_payment'
 [✓] Soft delete — no hard deletes on orders or products
-[✓] CodeQL — security-extended, runs on every push + weekly
+[✓] Action SHA pinning — all GitHub Actions pinned to commit SHA (supply chain hardening)
+[✓] golangci-lint — govet, staticcheck, errcheck, revive, gocritic, gosec, ineffassign, unused
+[✓] gosec — SAST: SQL injection, hardcoded secrets, path traversal, weak crypto
+[✓] Semgrep — p/golang + p/secrets, runs on every push + weekly
+[✓] govulncheck — CVE scan on all Go dependencies, blocks PR on findings
+[✓] Dependency review — blocks PRs with deps of severity ≥ moderate
+[✓] CodeQL — security-extended + security-and-quality, runs on every push + weekly
+[✓] Qodana — static analysis, Codacy-compatible reports
 ```
 
 ### Rate Limiting
@@ -627,8 +635,8 @@ go-cart-api is the BFF (Backend for Frontend) in the clubedojava stack. Services
 
 ```mermaid
 graph TD
-    Frontend -->|POST /orders/{id}/pay| API["go-cart-api"]
-    API -->|JWT ServiceClaims aud=propay| ProPay
+    Frontend -->|POST /orders/:id/pay| API["go-cart-api"]
+    API -->|JWT ServiceClaims| ProPay
     ProPay -->|QR Code| OpenPix
     OpenPix -->|HMAC webhook| ProPay
     ProPay -->|X-Propay-Signature| API
@@ -653,15 +661,20 @@ go build -o go-cart-api cmd/main.go
 
 # Docker
 docker build -t go-cart-api .
-docker run -p 4445:4445 --env-file .env go-cart-api
+docker run -p 4444:4444 --env-file .env go-cart-api
 ```
 
 ### CI/CD
 
 | Workflow | Trigger | What it does |
 |---|---|---|
-| `codeql.yml` | Push / PR + weekly | CodeQL security-extended · SARIF to GitHub Security tab |
-| `go.yml` | Push / PR | `go test ./...` + `go vet` |
+| `go.yml` | Push / PR | `lint` (golangci-lint) → `vuln` (govulncheck) → `build + test -race` · lint gates build |
+| `security.yml` | Push / PR + weekly Mon | Semgrep `p/golang` + `p/secrets` · results saved as artifact |
+| `codeql.yml` | Push / PR + weekly Tue | CodeQL `security-extended,security-and-quality` · SARIF to GitHub Security tab |
+| `dependency-review.yml` | Pull Request | Blocks PRs with dependencies of severity ≥ moderate |
+| `qodana_code_quality.yml` | Push / PR | Qodana static analysis · Codacy-compatible reports |
+
+All actions pinned to commit SHA (supply chain hardening). To update a pin: `git ls-remote --tags https://github.com/<owner>/<action>.git` and update the SHA + version comment.
 
 ---
 
