@@ -1,11 +1,14 @@
 package handlers_test
 
 import (
-	"bullet-cloud-api/internal/auth"
-	"bullet-cloud-api/internal/cart"
-	"bullet-cloud-api/internal/handlers"
-	"bullet-cloud-api/internal/models"
-	"bullet-cloud-api/internal/users"
+	"bullet-commerce/internal/auth"
+	"bullet-commerce/internal/cart"
+	"bullet-commerce/internal/coupons"
+	"bullet-commerce/internal/handlers"
+	"bullet-commerce/internal/models"
+	"bullet-commerce/internal/promotions"
+	"bullet-commerce/internal/users"
+	"bullet-commerce/internal/variants"
 	"fmt"
 	"net/http"
 	"strings"
@@ -24,7 +27,7 @@ func setupCartTest(t *testing.T) (*MockCartRepository, *MockUserRepository, *Moc
 	// Call the base setup - Capture necessary mocks and router, ignore cart repo from base
 	_, _, router, mockUserRepo, mockProductRepo, _, _, _, _ := setupBaseTest(t)
 
-	cartHandler := handlers.NewCartHandler(mockCartRepo, mockProductRepo)
+	cartHandler := handlers.NewCartHandler(mockCartRepo, mockProductRepo, new(variants.MockVariantRepository), promotions.NoopVoucherHandler{})
 
 	// Need authMiddleware instance for protected routes
 	authMiddleware := auth.NewMiddleware(testJwtSecret, mockUserRepo)
@@ -33,8 +36,8 @@ func setupCartTest(t *testing.T) (*MockCartRepository, *MockUserRepository, *Moc
 	apiV1.Use(authMiddleware.Authenticate)
 	apiV1.HandleFunc("/cart", cartHandler.GetCart).Methods("GET")
 	apiV1.HandleFunc("/cart/items", cartHandler.AddItem).Methods("POST")
-	apiV1.HandleFunc("/cart/items/{productId:[0-9a-fA-F-]+}", cartHandler.UpdateItem).Methods("PUT")
-	apiV1.HandleFunc("/cart/items/{productId:[0-9a-fA-F-]+}", cartHandler.DeleteItem).Methods("DELETE")
+	apiV1.HandleFunc("/cart/items/{variantId:[0-9a-fA-F-]+}", cartHandler.UpdateItem).Methods("PUT")
+	apiV1.HandleFunc("/cart/items/{variantId:[0-9a-fA-F-]+}", cartHandler.DeleteItem).Methods("DELETE")
 	apiV1.HandleFunc("/cart", cartHandler.ClearCart).Methods("DELETE") // Note: DELETE on /api/cart for clearing
 
 	return mockCartRepo, mockUserRepo, mockProductRepo, cartHandler, authMiddleware, router
@@ -45,8 +48,8 @@ func TestCartHandler_GetCart(t *testing.T) {
 	testUserID := uuid.New()
 	testCart := &models.Cart{ID: uuid.New(), UserID: testUserID}
 	testItems := []models.CartItem{
-		{CartID: testCart.ID, ProductID: uuid.New(), Quantity: 2, Price: 10.50},
-		{CartID: testCart.ID, ProductID: uuid.New(), Quantity: 1, Price: 25.00},
+		{CartID: testCart.ID, ProductID: uuid.New(), Quantity: 2, PriceCents: 1050},
+		{CartID: testCart.ID, ProductID: uuid.New(), Quantity: 1, PriceCents: 2500},
 	}
 
 	tests := []struct {
@@ -62,7 +65,7 @@ func TestCartHandler_GetCart(t *testing.T) {
 				mockGetCartItemsSuccess(mockCartRepo, testCart.ID, testItems)
 			},
 			expectedStatus:       http.StatusOK,
-			expectedBodyContains: fmt.Sprintf(`{"cart":{"id":"%s","user_id":"%s","created_at":"0001-01-01T00:00:00Z","updated_at":"0001-01-01T00:00:00Z"},"items":[{"id":"00000000-0000-0000-0000-000000000000","cart_id":"%s","product_id":"%s","quantity":%d,"price":%.2f,"created_at":"0001-01-01T00:00:00Z","updated_at":"0001-01-01T00:00:00Z"},{"id":"00000000-0000-0000-0000-000000000000","cart_id":"%s","product_id":"%s","quantity":%d,"price":%.2f,"created_at":"0001-01-01T00:00:00Z","updated_at":"0001-01-01T00:00:00Z"}],"total":%.2f}`, testCart.ID, testUserID, testItems[0].CartID, testItems[0].ProductID, testItems[0].Quantity, testItems[0].Price, testItems[1].CartID, testItems[1].ProductID, testItems[1].Quantity, testItems[1].Price, (testItems[0].Price*float64(testItems[0].Quantity))+(testItems[1].Price*float64(testItems[1].Quantity))),
+			expectedBodyContains: fmt.Sprintf(`{"cart":{"id":"%s","user_id":"%s","created_at":"0001-01-01T00:00:00Z","updated_at":"0001-01-01T00:00:00Z"},"items":[{"id":"00000000-0000-0000-0000-000000000000","cart_id":"%s","product_id":"%s","quantity":%d,"price_cents":%d,"created_at":"0001-01-01T00:00:00Z","updated_at":"0001-01-01T00:00:00Z"},{"id":"00000000-0000-0000-0000-000000000000","cart_id":"%s","product_id":"%s","quantity":%d,"price_cents":%d,"created_at":"0001-01-01T00:00:00Z","updated_at":"0001-01-01T00:00:00Z"}],"total_cents":%d}`, testCart.ID, testUserID, testItems[0].CartID, testItems[0].ProductID, testItems[0].Quantity, testItems[0].PriceCents, testItems[1].CartID, testItems[1].ProductID, testItems[1].Quantity, testItems[1].PriceCents, (testItems[0].PriceCents*int64(testItems[0].Quantity))+(testItems[1].PriceCents*int64(testItems[1].Quantity))),
 		},
 		{
 			name: "Success - New Cart (Empty)",
@@ -71,7 +74,7 @@ func TestCartHandler_GetCart(t *testing.T) {
 				mockGetCartItemsSuccess(mockCartRepo, testCart.ID, []models.CartItem{})
 			},
 			expectedStatus:       http.StatusOK,
-			expectedBodyContains: fmt.Sprintf(`{"cart": {"id":"%s", "user_id":"%s", "created_at":"0001-01-01T00:00:00Z", "updated_at":"0001-01-01T00:00:00Z"}, "items": [], "total": 0.00}`, testCart.ID, testUserID),
+			expectedBodyContains: fmt.Sprintf(`{"cart": {"id":"%s", "user_id":"%s", "created_at":"0001-01-01T00:00:00Z", "updated_at":"0001-01-01T00:00:00Z"}, "items": [], "total_cents": 0.00}`, testCart.ID, testUserID),
 		},
 		{
 			name: "Error - GetOrCreateCart Fails",
@@ -113,7 +116,7 @@ func TestCartHandler_GetCart(t *testing.T) {
 			mockUserRepo := new(MockUserRepository)
 			mockCartRepo := new(MockCartRepository)
 			mockProductRepo := new(MockProductRepository) // Needed for handler instantiation
-			cartHandler := handlers.NewCartHandler(mockCartRepo, mockProductRepo)
+			cartHandler := handlers.NewCartHandler(mockCartRepo, mockProductRepo, new(variants.MockVariantRepository), promotions.NoopVoucherHandler{})
 			authMiddleware := auth.NewMiddleware(testJwtSecret, mockUserRepo)
 			router := mux.NewRouter()
 			router.Handle("/api/cart", authMiddleware.Authenticate(http.HandlerFunc(cartHandler.GetCart))).Methods("GET")
@@ -155,32 +158,48 @@ func TestCartHandler_AddItem(t *testing.T) {
 	testUserID := uuid.New()
 	testCart := &models.Cart{ID: uuid.New(), UserID: testUserID}
 	productID := uuid.New()
-	testProduct := &models.Product{ID: productID, Name: "Test Item", Price: 19.99}
+	testProduct := &models.Product{ID: productID, Name: "Test Item", PriceCents: 1999}
 	testQuantity := 2
-	testCartItem := &models.CartItem{CartID: testCart.ID, ProductID: productID, Quantity: testQuantity, Price: testProduct.Price}
+	// The default variant resolves the sellable unit. Price is materialized on the variant
+	// (NOT NULL), so the line takes variant.PriceCents directly — here equal to the product's.
+	testVariant := models.ProductVariant{ID: uuid.New(), ProductID: productID, SKU: "default-" + productID.String(), PriceCents: testProduct.PriceCents}
+	testCartItem := &models.CartItem{CartID: testCart.ID, ProductID: productID, VariantID: testVariant.ID, Quantity: testQuantity, PriceCents: testProduct.PriceCents}
 
 	tests := []struct {
 		name                 string
 		body                 string
-		mocksSetup           func(mockCartRepo *MockCartRepository, mockProductRepo *MockProductRepository)
+		mocksSetup           func(mockCartRepo *MockCartRepository, mockProductRepo *MockProductRepository, mockVariantRepo *variants.MockVariantRepository)
 		expectedStatus       int
 		expectedBodyContains string
 	}{
 		{
-			name: "Success - Add New Item",
+			name: "Success - Add New Item (default variant)",
 			body: fmt.Sprintf(`{"product_id":"%s", "quantity":%d}`, productID, testQuantity),
-			mocksSetup: func(mockCartRepo *MockCartRepository, mockProductRepo *MockProductRepository) {
+			mocksSetup: func(mockCartRepo *MockCartRepository, mockProductRepo *MockProductRepository, mockVariantRepo *variants.MockVariantRepository) {
 				mockGetOrCreateCartSuccess(mockCartRepo, testUserID, testCart)
 				mockFindProductSuccess(mockProductRepo, testProduct)
-				mockAddItemSuccess(mockCartRepo, testCart.ID, productID, testQuantity, testProduct.Price, testCartItem)
+				mockVariantRepo.On("FindByProductID", mock.Anything, productID).Return([]models.ProductVariant{testVariant}, nil).Once()
+				mockAddItemSuccess(mockCartRepo, testCart.ID, productID, testVariant.ID, testQuantity, testProduct.PriceCents, testCartItem)
 			},
 			expectedStatus:       http.StatusCreated,
-			expectedBodyContains: fmt.Sprintf(`{"id":"00000000-0000-0000-0000-000000000000","cart_id":"%s","product_id":"%s","quantity":%d,"price":%.2f,"created_at":"0001-01-01T00:00:00Z","updated_at":"0001-01-01T00:00:00Z"}`, testCart.ID, productID, testQuantity, testProduct.Price),
+			expectedBodyContains: fmt.Sprintf(`"variant_id":"%s"`, testVariant.ID),
+		},
+		{
+			name: "Success - Add New Item (explicit variant)",
+			body: fmt.Sprintf(`{"product_id":"%s", "variant_id":"%s", "quantity":%d}`, productID, testVariant.ID, testQuantity),
+			mocksSetup: func(mockCartRepo *MockCartRepository, mockProductRepo *MockProductRepository, mockVariantRepo *variants.MockVariantRepository) {
+				mockGetOrCreateCartSuccess(mockCartRepo, testUserID, testCart)
+				mockFindProductSuccess(mockProductRepo, testProduct)
+				mockVariantRepo.On("FindByID", mock.Anything, testVariant.ID).Return(&testVariant, nil).Once()
+				mockAddItemSuccess(mockCartRepo, testCart.ID, productID, testVariant.ID, testQuantity, testProduct.PriceCents, testCartItem)
+			},
+			expectedStatus:       http.StatusCreated,
+			expectedBodyContains: fmt.Sprintf(`"variant_id":"%s"`, testVariant.ID),
 		},
 		{
 			name: "Error - Invalid Quantity (Zero)",
 			body: fmt.Sprintf(`{"product_id":"%s", "quantity":0}`, productID),
-			mocksSetup: func(mockCartRepo *MockCartRepository, mockProductRepo *MockProductRepository) {
+			mocksSetup: func(mockCartRepo *MockCartRepository, mockProductRepo *MockProductRepository, mockVariantRepo *variants.MockVariantRepository) {
 				mockGetOrCreateCartSuccess(mockCartRepo, testUserID, testCart)
 				// No product or add item mock needed
 			},
@@ -190,7 +209,7 @@ func TestCartHandler_AddItem(t *testing.T) {
 		{
 			name: "Error - Invalid Quantity (Negative)",
 			body: fmt.Sprintf(`{"product_id":"%s", "quantity":-1}`, productID),
-			mocksSetup: func(mockCartRepo *MockCartRepository, mockProductRepo *MockProductRepository) {
+			mocksSetup: func(mockCartRepo *MockCartRepository, mockProductRepo *MockProductRepository, mockVariantRepo *variants.MockVariantRepository) {
 				mockGetOrCreateCartSuccess(mockCartRepo, testUserID, testCart)
 			},
 			expectedStatus:       http.StatusBadRequest,
@@ -199,7 +218,7 @@ func TestCartHandler_AddItem(t *testing.T) {
 		{
 			name: "Error - Product Not Found",
 			body: fmt.Sprintf(`{"product_id":"%s", "quantity":%d}`, productID, testQuantity),
-			mocksSetup: func(mockCartRepo *MockCartRepository, mockProductRepo *MockProductRepository) {
+			mocksSetup: func(mockCartRepo *MockCartRepository, mockProductRepo *MockProductRepository, mockVariantRepo *variants.MockVariantRepository) {
 				mockGetOrCreateCartSuccess(mockCartRepo, testUserID, testCart)
 				mockFindProductNotFound(mockProductRepo, productID)
 			},
@@ -209,7 +228,7 @@ func TestCartHandler_AddItem(t *testing.T) {
 		{
 			name: "Error - FindProductByID Fails (Internal Error)",
 			body: fmt.Sprintf(`{"product_id":"%s", "quantity":%d}`, productID, testQuantity),
-			mocksSetup: func(mockCartRepo *MockCartRepository, mockProductRepo *MockProductRepository) {
+			mocksSetup: func(mockCartRepo *MockCartRepository, mockProductRepo *MockProductRepository, mockVariantRepo *variants.MockVariantRepository) {
 				mockGetOrCreateCartSuccess(mockCartRepo, testUserID, testCart)
 				mockFindProductError(mockProductRepo, productID)
 			},
@@ -219,10 +238,11 @@ func TestCartHandler_AddItem(t *testing.T) {
 		{
 			name: "Error - AddItem Fails",
 			body: fmt.Sprintf(`{"product_id":"%s", "quantity":%d}`, productID, testQuantity),
-			mocksSetup: func(mockCartRepo *MockCartRepository, mockProductRepo *MockProductRepository) {
+			mocksSetup: func(mockCartRepo *MockCartRepository, mockProductRepo *MockProductRepository, mockVariantRepo *variants.MockVariantRepository) {
 				mockGetOrCreateCartSuccess(mockCartRepo, testUserID, testCart)
 				mockFindProductSuccess(mockProductRepo, testProduct)
-				mockAddItemError(mockCartRepo, testCart.ID, productID, testQuantity, testProduct.Price)
+				mockVariantRepo.On("FindByProductID", mock.Anything, productID).Return([]models.ProductVariant{testVariant}, nil).Once()
+				mockAddItemError(mockCartRepo, testCart.ID, productID, testVariant.ID, testQuantity, testProduct.PriceCents)
 			},
 			expectedStatus:       http.StatusInternalServerError,
 			expectedBodyContains: `{"error":"failed to add item to cart"}`,
@@ -230,7 +250,7 @@ func TestCartHandler_AddItem(t *testing.T) {
 		{
 			name: "Error - Invalid JSON Body",
 			body: `{"product_id": invalid}`, // Malformed JSON
-			mocksSetup: func(mockCartRepo *MockCartRepository, mockProductRepo *MockProductRepository) {
+			mocksSetup: func(mockCartRepo *MockCartRepository, mockProductRepo *MockProductRepository, mockVariantRepo *variants.MockVariantRepository) {
 				// May or may not call GetOrCreateCart depending on when body is parsed
 				mockCartRepo.On("GetOrCreateCartByUserID", mock.Anything, testUserID).Return(testCart, nil).Maybe()
 			},
@@ -240,7 +260,7 @@ func TestCartHandler_AddItem(t *testing.T) {
 		{
 			name: "Error - Middleware User Check Fails",
 			body: fmt.Sprintf(`{"product_id":"%s", "quantity":%d}`, productID, testQuantity),
-			mocksSetup: func(mockCartRepo *MockCartRepository, mockProductRepo *MockProductRepository) { /* No cart/product mocks needed */
+			mocksSetup: func(mockCartRepo *MockCartRepository, mockProductRepo *MockProductRepository, mockVariantRepo *variants.MockVariantRepository) { /* No cart/product mocks needed */
 			},
 			expectedStatus:       http.StatusUnauthorized,
 			expectedBodyContains: `{"error":"user associated with token not found"}`,
@@ -248,7 +268,7 @@ func TestCartHandler_AddItem(t *testing.T) {
 		{
 			name: "Error - No Auth Token",
 			body: fmt.Sprintf(`{"product_id":"%s", "quantity":%d}`, productID, testQuantity),
-			mocksSetup: func(mockCartRepo *MockCartRepository, mockProductRepo *MockProductRepository) { /* No cart/product mocks needed */
+			mocksSetup: func(mockCartRepo *MockCartRepository, mockProductRepo *MockProductRepository, mockVariantRepo *variants.MockVariantRepository) { /* No cart/product mocks needed */
 			},
 			expectedStatus:       http.StatusUnauthorized,
 			expectedBodyContains: `{"error":"authorization header required"}`,
@@ -262,7 +282,8 @@ func TestCartHandler_AddItem(t *testing.T) {
 			mockUserRepo := new(MockUserRepository)
 			mockCartRepo := new(MockCartRepository)
 			mockProductRepo := new(MockProductRepository)
-			cartHandler := handlers.NewCartHandler(mockCartRepo, mockProductRepo)
+			mockVariantRepo := new(variants.MockVariantRepository)
+			cartHandler := handlers.NewCartHandler(mockCartRepo, mockProductRepo, mockVariantRepo, promotions.NoopVoucherHandler{})
 			authMiddleware := auth.NewMiddleware(testJwtSecret, mockUserRepo)
 			router := mux.NewRouter()
 			router.Handle("/api/cart/items", authMiddleware.Authenticate(http.HandlerFunc(cartHandler.AddItem))).Methods("POST")
@@ -274,8 +295,8 @@ func TestCartHandler_AddItem(t *testing.T) {
 				mockUserRepo.On("FindByID", mock.Anything, testUserID).Return(&models.User{ID: testUserID}, nil).Maybe()
 			}
 
-			// Setup CartRepo and ProductRepo mocks
-			tc.mocksSetup(mockCartRepo, mockProductRepo)
+			// Setup CartRepo, ProductRepo and VariantRepo mocks
+			tc.mocksSetup(mockCartRepo, mockProductRepo, mockVariantRepo)
 
 			// Generate token (or not)
 			var currentToken string
@@ -308,13 +329,13 @@ func TestCartHandler_AddItem(t *testing.T) {
 	}
 }
 
-// TestCartHandler_DeleteItem tests the DELETE /api/cart/items/{productId} endpoint
+// TestCartHandler_DeleteItem tests the DELETE /api/cart/items/{variantId} endpoint
 func TestCartHandler_DeleteItem(t *testing.T) {
 	// Explicitly capture all 9 return values
 	_, _, router, baseMockUserRepo, baseMockProductRepo, _, _, baseMockCartRepo, token := setupBaseTest(t)
 
 	// Handler created once
-	cartHandler := handlers.NewCartHandler(baseMockCartRepo, baseMockProductRepo)
+	cartHandler := handlers.NewCartHandler(baseMockCartRepo, baseMockProductRepo, new(variants.MockVariantRepository), promotions.NoopVoucherHandler{})
 
 	claims, err := auth.ValidateToken(token, testJwtSecret)
 	require.NoError(t, err)
@@ -324,7 +345,7 @@ func TestCartHandler_DeleteItem(t *testing.T) {
 	testCart := &models.Cart{ID: uuid.New(), UserID: testUserID}
 
 	// Route registered once
-	router.Handle("/api/cart/items/{productId}", auth.NewMiddleware(testJwtSecret, baseMockUserRepo).Authenticate(http.HandlerFunc(cartHandler.DeleteItem))).Methods("DELETE")
+	router.Handle("/api/cart/items/{variantId}", auth.NewMiddleware(testJwtSecret, baseMockUserRepo).Authenticate(http.HandlerFunc(cartHandler.DeleteItem))).Methods("DELETE")
 
 	tests := []struct {
 		name                 string
@@ -350,7 +371,7 @@ func TestCartHandler_DeleteItem(t *testing.T) {
 				mockCartRepo.On("GetCartItems", mock.Anything, testCart.ID).Return([]models.CartItem{}, nil).Once()
 			},
 			expectedStatus:       http.StatusOK,
-			expectedBodyContains: fmt.Sprintf(`{"cart":{"id":"%s","user_id":"%s","created_at":"0001-01-01T00:00:00Z","updated_at":"0001-01-01T00:00:00Z"},"items":[],"total":0}`, testCart.ID, testUserID),
+			expectedBodyContains: fmt.Sprintf(`{"cart":{"id":"%s","user_id":"%s","created_at":"0001-01-01T00:00:00Z","updated_at":"0001-01-01T00:00:00Z"},"items":[],"total_cents":0}`, testCart.ID, testUserID),
 		},
 		{
 			name:           "Product Not Found in Cart",
@@ -366,7 +387,7 @@ func TestCartHandler_DeleteItem(t *testing.T) {
 			expectedBodyContains: `{"error":"product not found in cart"}`,
 		},
 		{
-			name:           "Invalid Product ID Format",
+			name:           "Invalid Variant ID Format",
 			productIDParam: "invalid-uuid",
 			mockGetOrCreateCart: func(mockCartRepo *MockCartRepository) {
 				mockCartRepo.On("GetOrCreateCartByUserID", mock.Anything, testUserID).Return(testCart, nil).Once()
@@ -374,7 +395,7 @@ func TestCartHandler_DeleteItem(t *testing.T) {
 			mockRemoveItem:       func(mockCartRepo *MockCartRepository) { /* Not called */ },
 			mockGetCartItems:     func(mockCartRepo *MockCartRepository) { /* Not called */ },
 			expectedStatus:       http.StatusBadRequest,
-			expectedBodyContains: `{"error":"invalid product ID format"}`,
+			expectedBodyContains: `{"error":"invalid variant ID format"}`,
 		},
 		{
 			name:           "GetOrCreateCart Fails",
@@ -441,7 +462,7 @@ func TestCartHandler_DeleteItem(t *testing.T) {
 
 			// Re-register route with new middleware
 			subRouter := mux.NewRouter()
-			subRouter.Handle("/api/cart/items/{productId}", authMiddleware.Authenticate(http.HandlerFunc(cartHandler.DeleteItem))).Methods("DELETE")
+			subRouter.Handle("/api/cart/items/{variantId}", authMiddleware.Authenticate(http.HandlerFunc(cartHandler.DeleteItem))).Methods("DELETE")
 
 			executeRequestAndAssert(t, subRouter, req, tc.expectedStatus, tc.expectedBodyContains)
 
@@ -451,13 +472,13 @@ func TestCartHandler_DeleteItem(t *testing.T) {
 	}
 }
 
-// TestCartHandler_UpdateItem tests the PUT /api/cart/items/{productId} endpoint
+// TestCartHandler_UpdateItem tests the PUT /api/cart/items/{variantId} endpoint
 func TestCartHandler_UpdateItem(t *testing.T) {
 	// Explicitly capture all 9 return values
 	_, _, router, baseMockUserRepo, baseMockProductRepo, _, _, baseMockCartRepo, token := setupBaseTest(t)
 
 	// Handler created once
-	cartHandler := handlers.NewCartHandler(baseMockCartRepo, baseMockProductRepo)
+	cartHandler := handlers.NewCartHandler(baseMockCartRepo, baseMockProductRepo, new(variants.MockVariantRepository), promotions.NoopVoucherHandler{})
 
 	claims, err := auth.ValidateToken(token, testJwtSecret)
 	require.NoError(t, err)
@@ -466,10 +487,10 @@ func TestCartHandler_UpdateItem(t *testing.T) {
 	productID := uuid.New()
 	testCart := &models.Cart{ID: uuid.New(), UserID: testUserID}
 	updatedQuantity := 5
-	updatedItem := &models.CartItem{CartID: testCart.ID, ProductID: productID, Quantity: updatedQuantity, Price: 15.00}
+	updatedItem := &models.CartItem{CartID: testCart.ID, ProductID: productID, Quantity: updatedQuantity, PriceCents: 1500}
 
 	// Route registered once
-	router.Handle("/api/cart/items/{productId}", auth.NewMiddleware(testJwtSecret, baseMockUserRepo).Authenticate(http.HandlerFunc(cartHandler.UpdateItem))).Methods("PUT")
+	router.Handle("/api/cart/items/{variantId}", auth.NewMiddleware(testJwtSecret, baseMockUserRepo).Authenticate(http.HandlerFunc(cartHandler.UpdateItem))).Methods("PUT")
 
 	tests := []struct {
 		name                 string
@@ -499,7 +520,7 @@ func TestCartHandler_UpdateItem(t *testing.T) {
 				mockCartRepo.On("GetCartItems", mock.Anything, testCart.ID).Return([]models.CartItem{*updatedItem}, nil).Once()
 			},
 			expectedStatus:       http.StatusOK,
-			expectedBodyContains: fmt.Sprintf(`{"cart":{"id":"%s","user_id":"%s","created_at":"0001-01-01T00:00:00Z","updated_at":"0001-01-01T00:00:00Z"},"items":[%s],"total":%.2f}`, testCart.ID, testUserID, fmt.Sprintf(`{"id":"00000000-0000-0000-0000-000000000000","cart_id":"%s","product_id":"%s","quantity":%d,"price":%.2f,"created_at":"0001-01-01T00:00:00Z","updated_at":"0001-01-01T00:00:00Z"}`, updatedItem.CartID, updatedItem.ProductID, updatedItem.Quantity, updatedItem.Price), float64(updatedItem.Quantity)*updatedItem.Price),
+			expectedBodyContains: fmt.Sprintf(`{"cart":{"id":"%s","user_id":"%s","created_at":"0001-01-01T00:00:00Z","updated_at":"0001-01-01T00:00:00Z"},"items":[%s],"total_cents":%d}`, testCart.ID, testUserID, fmt.Sprintf(`{"id":"00000000-0000-0000-0000-000000000000","cart_id":"%s","product_id":"%s","quantity":%d,"price_cents":%d,"created_at":"0001-01-01T00:00:00Z","updated_at":"0001-01-01T00:00:00Z"}`, updatedItem.CartID, updatedItem.ProductID, updatedItem.Quantity, updatedItem.PriceCents), int64(updatedItem.Quantity)*updatedItem.PriceCents),
 		},
 		{
 			name:           "Quantity Zero (Triggers Delete)",
@@ -517,7 +538,7 @@ func TestCartHandler_UpdateItem(t *testing.T) {
 				mockCartRepo.On("GetCartItems", mock.Anything, testCart.ID).Return([]models.CartItem{}, nil).Once()
 			},
 			expectedStatus:       http.StatusOK,
-			expectedBodyContains: fmt.Sprintf(`{"cart":{"id":"%s","user_id":"%s","created_at":"0001-01-01T00:00:00Z","updated_at":"0001-01-01T00:00:00Z"},"items":[],"total":0}`, testCart.ID, testUserID),
+			expectedBodyContains: fmt.Sprintf(`{"cart":{"id":"%s","user_id":"%s","created_at":"0001-01-01T00:00:00Z","updated_at":"0001-01-01T00:00:00Z"},"items":[],"total_cents":0}`, testCart.ID, testUserID),
 		},
 		{
 			name:           "Product Not Found in Cart",
@@ -550,7 +571,7 @@ func TestCartHandler_UpdateItem(t *testing.T) {
 				mockCartRepo.On("GetCartItems", mock.Anything, testCart.ID).Return([]models.CartItem{}, nil).Once()
 			},
 			expectedStatus:       http.StatusOK,
-			expectedBodyContains: fmt.Sprintf(`{"cart":{"id":"%s","user_id":"%s","created_at":"0001-01-01T00:00:00Z","updated_at":"0001-01-01T00:00:00Z"},"items":[],"total":0}`, testCart.ID, testUserID),
+			expectedBodyContains: fmt.Sprintf(`{"cart":{"id":"%s","user_id":"%s","created_at":"0001-01-01T00:00:00Z","updated_at":"0001-01-01T00:00:00Z"},"items":[],"total_cents":0}`, testCart.ID, testUserID),
 		},
 		{
 			name:           "Invalid JSON Body",
@@ -566,7 +587,7 @@ func TestCartHandler_UpdateItem(t *testing.T) {
 			expectedBodyContains: `{"error":"invalid request body"}`,
 		},
 		{
-			name:           "Invalid Product ID Format",
+			name:           "Invalid Variant ID Format",
 			productIDParam: "invalid-uuid",
 			body:           fmt.Sprintf(`{"quantity": %d}`, updatedQuantity),
 			mockGetOrCreateCart: func(mockCartRepo *MockCartRepository) {
@@ -576,7 +597,7 @@ func TestCartHandler_UpdateItem(t *testing.T) {
 			mockRemoveItem:       func(mockCartRepo *MockCartRepository) { /* Not called */ },
 			mockGetCartItems:     func(mockCartRepo *MockCartRepository) { /* Not called */ },
 			expectedStatus:       http.StatusBadRequest,
-			expectedBodyContains: `{"error":"invalid product ID format"}`,
+			expectedBodyContains: `{"error":"invalid variant ID format"}`,
 		},
 		{
 			name:           "GetOrCreateCart Fails",
@@ -633,7 +654,7 @@ func TestCartHandler_UpdateItem(t *testing.T) {
 
 			// Re-register route
 			subRouter := mux.NewRouter()
-			subRouter.Handle("/api/cart/items/{productId}", authMiddleware.Authenticate(http.HandlerFunc(cartHandler.UpdateItem))).Methods("PUT")
+			subRouter.Handle("/api/cart/items/{variantId}", authMiddleware.Authenticate(http.HandlerFunc(cartHandler.UpdateItem))).Methods("PUT")
 
 			executeRequestAndAssert(t, subRouter, req, tc.expectedStatus, tc.expectedBodyContains)
 
@@ -649,7 +670,7 @@ func TestCartHandler_ClearCart(t *testing.T) {
 	_, _, router, baseMockUserRepo, baseMockProductRepo, _, _, baseMockCartRepo, token := setupBaseTest(t)
 
 	// Handler created once
-	cartHandler := handlers.NewCartHandler(baseMockCartRepo, baseMockProductRepo)
+	cartHandler := handlers.NewCartHandler(baseMockCartRepo, baseMockProductRepo, new(variants.MockVariantRepository), promotions.NoopVoucherHandler{})
 
 	claims, err := auth.ValidateToken(token, testJwtSecret)
 	require.NoError(t, err)
@@ -728,4 +749,148 @@ func TestCartHandler_ClearCart(t *testing.T) {
 			mockUserRepo.AssertExpectations(t)
 		})
 	}
+}
+
+// --- Coupon endpoints & discount pricing ---
+
+// couponVoucher builds a real CouponHandler backed by a mock coupon repo returning the
+// given coupon for the given code, so the handler exercises the real pricing path.
+func couponVoucher(code string, coupon *models.Coupon) *promotions.CouponHandler {
+	repo := &coupons.MockCouponRepository{}
+	if coupon != nil {
+		repo.On("FindByCode", mock.Anything, code).Return(coupon, nil)
+	} else {
+		repo.On("FindByCode", mock.Anything, code).Return(nil, coupons.ErrCouponNotFound)
+	}
+	return promotions.NewCouponHandler(repo)
+}
+
+// TestCartHandler_GetCart_WithDiscount pins the accept criterion: a 10%-off coupon on a
+// 10000-cent cart yields discount_cents 1000 and total_cents 9000.
+func TestCartHandler_GetCart_WithDiscount(t *testing.T) {
+	testUserID := uuid.New()
+	testCart := &models.Cart{ID: uuid.New(), UserID: testUserID, AppliedCouponCodes: []string{"SAVE10"}}
+	items := []models.CartItem{{CartID: testCart.ID, ProductID: uuid.New(), Quantity: 1, PriceCents: 10000}}
+	coupon := &models.Coupon{ID: uuid.New(), Code: "SAVE10", DiscountType: models.CouponPercent, Value: 10, Active: true}
+
+	mockUserRepo := new(MockUserRepository)
+	mockCartRepo := new(MockCartRepository)
+	cartHandler := handlers.NewCartHandler(mockCartRepo, new(MockProductRepository), new(variants.MockVariantRepository), couponVoucher("SAVE10", coupon))
+	authMiddleware := auth.NewMiddleware(testJwtSecret, mockUserRepo)
+	router := mux.NewRouter()
+	router.Handle("/api/cart", authMiddleware.Authenticate(http.HandlerFunc(cartHandler.GetCart))).Methods("GET")
+
+	mockUserRepo.On("FindByID", mock.Anything, testUserID).Return(&models.User{ID: testUserID}, nil).Maybe()
+	mockCartRepo.On("GetOrCreateCartByUserID", mock.Anything, testUserID).Return(testCart, nil).Once()
+	mockCartRepo.On("GetCartItems", mock.Anything, testCart.ID).Return(items, nil).Once()
+
+	token, err := generateTestToken(testUserID)
+	require.NoError(t, err)
+	req, _ := http.NewRequest("GET", "/api/cart", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	rr := executeRequestAndAssert(t, router, req, http.StatusOK, `{"discount_cents":1000,"total_cents":9000}`)
+	assert.Contains(t, rr.Body.String(), `"discount_cents":1000`)
+	mockCartRepo.AssertExpectations(t)
+}
+
+func TestCartHandler_AddCoupon(t *testing.T) {
+	testUserID := uuid.New()
+	testCart := &models.Cart{ID: uuid.New(), UserID: testUserID}
+	items := []models.CartItem{{CartID: testCart.ID, ProductID: uuid.New(), Quantity: 1, PriceCents: 10000}}
+
+	tests := []struct {
+		name           string
+		body           string
+		coupon         *models.Coupon
+		code           string
+		expectPersist  bool
+		expectedStatus int
+	}{
+		{
+			name:           "Success",
+			body:           `{"code":"SAVE10"}`,
+			coupon:         &models.Coupon{ID: uuid.New(), Code: "SAVE10", DiscountType: models.CouponPercent, Value: 10, Active: true},
+			code:           "SAVE10",
+			expectPersist:  true,
+			expectedStatus: http.StatusOK,
+		},
+		{
+			name:           "Invalid coupon rejected",
+			body:           `{"code":"NOPE"}`,
+			coupon:         nil, // FindByCode → ErrCouponNotFound
+			code:           "NOPE",
+			expectPersist:  false,
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:           "Empty code",
+			body:           `{"code":""}`,
+			coupon:         nil,
+			code:           "",
+			expectPersist:  false,
+			expectedStatus: http.StatusBadRequest,
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			mockUserRepo := new(MockUserRepository)
+			mockCartRepo := new(MockCartRepository)
+			cartHandler := handlers.NewCartHandler(mockCartRepo, new(MockProductRepository), new(variants.MockVariantRepository), couponVoucher(tc.code, tc.coupon))
+			authMiddleware := auth.NewMiddleware(testJwtSecret, mockUserRepo)
+			router := mux.NewRouter()
+			router.Handle("/api/cart/coupon", authMiddleware.Authenticate(http.HandlerFunc(cartHandler.AddCoupon))).Methods("POST")
+
+			mockUserRepo.On("FindByID", mock.Anything, testUserID).Return(&models.User{ID: testUserID}, nil).Maybe()
+			// GetOrCreateCart is hit once by AddCoupon, and again by GetCart on success.
+			mockCartRepo.On("GetOrCreateCartByUserID", mock.Anything, testUserID).Return(testCart, nil)
+			// AddCoupon reads items to price the code; GetCart reads them again on success.
+			mockCartRepo.On("GetCartItems", mock.Anything, testCart.ID).Return(items, nil)
+			if tc.expectPersist {
+				updated := &models.Cart{ID: testCart.ID, UserID: testUserID, AppliedCouponCodes: []string{tc.code}}
+				mockCartRepo.On("AddCouponCode", mock.Anything, testCart.ID, tc.code).Return(updated, nil).Once()
+			}
+
+			token, err := generateTestToken(testUserID)
+			require.NoError(t, err)
+			req, _ := http.NewRequest("POST", "/api/cart/coupon", strings.NewReader(tc.body))
+			req.Header.Set("Authorization", "Bearer "+token)
+			req.Header.Set("Content-Type", "application/json")
+
+			executeRequestAndAssert(t, router, req, tc.expectedStatus, "")
+			if tc.expectPersist {
+				mockCartRepo.AssertCalled(t, "AddCouponCode", mock.Anything, testCart.ID, tc.code)
+			} else {
+				mockCartRepo.AssertNotCalled(t, "AddCouponCode", mock.Anything, mock.Anything, mock.Anything)
+			}
+		})
+	}
+}
+
+func TestCartHandler_RemoveCoupon(t *testing.T) {
+	testUserID := uuid.New()
+	testCart := &models.Cart{ID: uuid.New(), UserID: testUserID, AppliedCouponCodes: []string{"SAVE10"}}
+
+	mockUserRepo := new(MockUserRepository)
+	mockCartRepo := new(MockCartRepository)
+	cartHandler := handlers.NewCartHandler(mockCartRepo, new(MockProductRepository), new(variants.MockVariantRepository), promotions.NoopVoucherHandler{})
+	authMiddleware := auth.NewMiddleware(testJwtSecret, mockUserRepo)
+	router := mux.NewRouter()
+	router.Handle("/api/cart/coupon/{code}", authMiddleware.Authenticate(http.HandlerFunc(cartHandler.RemoveCoupon))).Methods("DELETE")
+
+	mockUserRepo.On("FindByID", mock.Anything, testUserID).Return(&models.User{ID: testUserID}, nil).Maybe()
+	mockCartRepo.On("GetOrCreateCartByUserID", mock.Anything, testUserID).Return(testCart, nil)
+	emptied := &models.Cart{ID: testCart.ID, UserID: testUserID}
+	mockCartRepo.On("RemoveCouponCode", mock.Anything, testCart.ID, "SAVE10").Return(emptied, nil).Once()
+	mockCartRepo.On("GetCartItems", mock.Anything, testCart.ID).Return([]models.CartItem{}, nil)
+
+	token, err := generateTestToken(testUserID)
+	require.NoError(t, err)
+	req, _ := http.NewRequest("DELETE", "/api/cart/coupon/SAVE10", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	executeRequestAndAssert(t, router, req, http.StatusOK, "")
+	mockCartRepo.AssertCalled(t, "RemoveCouponCode", mock.Anything, testCart.ID, "SAVE10")
 }

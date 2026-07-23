@@ -1,7 +1,7 @@
 package cart
 
 import (
-	"bullet-cloud-api/internal/models"
+	"bullet-commerce/internal/models"
 	"context"
 
 	"github.com/google/uuid"
@@ -60,12 +60,12 @@ func (_m *MockCartRepository) GetCartItems(ctx context.Context, cartID uuid.UUID
 }
 
 // AddItem mocks base method
-func (_m *MockCartRepository) AddItem(ctx context.Context, cartID uuid.UUID, productID uuid.UUID, quantity int, price float64) (*models.CartItem, error) {
-	ret := _m.Called(ctx, cartID, productID, quantity, price)
+func (_m *MockCartRepository) AddItem(ctx context.Context, cartID uuid.UUID, productID uuid.UUID, variantID uuid.UUID, quantity int, priceCents int64) (*models.CartItem, error) {
+	ret := _m.Called(ctx, cartID, productID, variantID, quantity, priceCents)
 
 	var r0 *models.CartItem
-	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID, int, float64) *models.CartItem); ok {
-		r0 = rf(ctx, cartID, productID, quantity, price)
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, int, int64) *models.CartItem); ok {
+		r0 = rf(ctx, cartID, productID, variantID, quantity, priceCents)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*models.CartItem)
@@ -73,8 +73,8 @@ func (_m *MockCartRepository) AddItem(ctx context.Context, cartID uuid.UUID, pro
 	}
 
 	var r1 error
-	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID, uuid.UUID, int, float64) error); ok {
-		r1 = rf(ctx, cartID, productID, quantity, price)
+	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, int, int64) error); ok {
+		r1 = rf(ctx, cartID, productID, variantID, quantity, priceCents)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -169,6 +169,24 @@ func (_m *MockCartRepository) ClearCart(ctx context.Context, cartID uuid.UUID) e
 	}
 
 	return r0
+}
+
+// AddCouponCode mocks base method
+func (_m *MockCartRepository) AddCouponCode(ctx context.Context, cartID uuid.UUID, code string) (*models.Cart, error) {
+	ret := _m.Called(ctx, cartID, code)
+	if ret.Get(0) == nil {
+		return nil, ret.Error(1)
+	}
+	return ret.Get(0).(*models.Cart), ret.Error(1)
+}
+
+// RemoveCouponCode mocks base method
+func (_m *MockCartRepository) RemoveCouponCode(ctx context.Context, cartID uuid.UUID, code string) (*models.Cart, error) {
+	ret := _m.Called(ctx, cartID, code)
+	if ret.Get(0) == nil {
+		return nil, ret.Error(1)
+	}
+	return ret.Get(0).(*models.Cart), ret.Error(1)
 }
 
 // FindCartItem mocks base method
