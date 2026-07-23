@@ -1,9 +1,6 @@
 # Environment variables
 .env
 
-vendor
-vendor/*
-
 .env.local
 .env.*.local
 .env.test.local
