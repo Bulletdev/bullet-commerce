@@ -153,6 +153,6 @@ type Result struct {
 
 // Service runs a composed search. Filters are variadic so callers assemble exactly the
 // concerns they need.
-type Service interface {
+type Service interface { // NOSONAR domain service name is intentional
 	Search(ctx context.Context, filters ...Filter) (Result, error)
 }

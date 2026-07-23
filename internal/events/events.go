@@ -5,7 +5,7 @@ import "github.com/google/uuid"
 // Event is any domain fact that already happened. WHY past-tense names: the bus
 // is fired by the caller AFTER a transaction commits, so an event always
 // represents a durable, non-reversible fact - never a request to do something.
-type Event interface {
+type Event interface { // NOSONAR domain event marker, not a behavioral interface
 	Name() string
 }
 

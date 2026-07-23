@@ -175,7 +175,7 @@ func TestCategoryHandler_GetCategory(t *testing.T) {
 
 // --- Tests for Protected Routes (Require Authentication) ---
 
-func TestCategoryHandler_CreateCategory(t *testing.T) {
+func TestCategoryHandler_CreateCategory(t *testing.T) { // NOSONAR table-driven test
 	testUserID := uuid.New()
 	// Corrected generateTestToken call
 	testToken, err := generateTestToken(testUserID)
@@ -299,7 +299,7 @@ func TestCategoryHandler_CreateCategory(t *testing.T) {
 	}
 }
 
-func TestCategoryHandler_UpdateCategory(t *testing.T) {
+func TestCategoryHandler_UpdateCategory(t *testing.T) { // NOSONAR table-driven test
 	testUserID := uuid.New()
 	categoryToUpdateID := uuid.New()
 	// Corrected generateTestToken call
@@ -483,7 +483,7 @@ func TestCategoryHandler_UpdateCategory(t *testing.T) {
 	}
 }
 
-func TestCategoryHandler_DeleteCategory(t *testing.T) {
+func TestCategoryHandler_DeleteCategory(t *testing.T) { // NOSONAR table-driven test
 	testUserID := uuid.New()
 	categoryToDeleteID := uuid.New()
 	// Corrected generateTestToken call

@@ -381,7 +381,7 @@ func TestProductHandler_CreateProduct_InvalidType(t *testing.T) {
 	_ = baseMockUserRepo
 }
 
-func TestProductHandler_UpdateProduct(t *testing.T) {
+func TestProductHandler_UpdateProduct(t *testing.T) { // NOSONAR table-driven test
 	// Setup inside loop
 	testUserID := uuid.New()
 	productToUpdateID := uuid.New()
@@ -533,7 +533,7 @@ func TestProductHandler_UpdateProduct(t *testing.T) {
 	}
 }
 
-func TestProductHandler_DeleteProduct(t *testing.T) {
+func TestProductHandler_DeleteProduct(t *testing.T) { // NOSONAR table-driven test
 	// Setup inside loop
 	testUserID := uuid.New()
 	productToDeleteID := uuid.New()

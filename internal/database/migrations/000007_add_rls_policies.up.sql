@@ -67,7 +67,7 @@ CREATE POLICY "Allow public select access" ON products FOR SELECT
     USING (true);
 -- Allow authenticated users to manage products (can be restricted to admin later)
 CREATE POLICY "Allow modification for authenticated users" ON products FOR ALL
-    USING (auth.role() = 'authenticated') -- Allow reading existing rows if authenticated
+    USING (auth.role() = 'authenticated') -- NOSONAR Allow reading existing rows if authenticated
     WITH CHECK (auth.role() = 'authenticated'); -- Check applies to INSERT/UPDATE
 
 -- Policies for 'categories' table

@@ -34,24 +34,9 @@ func (h *CouponHandler) Apply(ctx context.Context, subtotalCents int64, couponCo
 
 	out := make([]models.AppliedDiscount, 0, len(couponCodes))
 	for _, code := range couponCodes {
-		c, err := h.repo.FindByCode(ctx, code)
+		c, err := h.resolveValidCoupon(ctx, subtotalCents, code)
 		if err != nil {
-			if errors.Is(err, coupons.ErrCouponNotFound) {
-				return nil, fmt.Errorf("coupon %q is not valid", code)
-			}
 			return nil, err
-		}
-		if !c.Active {
-			return nil, fmt.Errorf("coupon %q is not active", code)
-		}
-		if c.ExpiresAt != nil && time.Now().After(*c.ExpiresAt) {
-			return nil, fmt.Errorf("coupon %q has expired", code)
-		}
-		if subtotalCents < c.MinCartCents {
-			return nil, fmt.Errorf("coupon %q requires a minimum cart of %d cents", code, c.MinCartCents)
-		}
-		if c.MaxUses != nil && c.UsedCount >= *c.MaxUses {
-			return nil, fmt.Errorf("coupon %q has reached its usage limit", code)
 		}
 
 		discount := computeDiscountCents(subtotalCents, c)
@@ -64,6 +49,33 @@ func (h *CouponHandler) Apply(ctx context.Context, subtotalCents int64, couponCo
 		})
 	}
 	return out, nil
+}
+
+// resolveValidCoupon looks up a single code and runs every eligibility check against
+// the current subtotal. It returns the coupon only when it is valid to apply; any
+// failure yields the shopper-facing error Apply propagates verbatim (same first-invalid
+// -> fail-the-call contract, unchanged messages and ordering).
+func (h *CouponHandler) resolveValidCoupon(ctx context.Context, subtotalCents int64, code string) (*models.Coupon, error) {
+	c, err := h.repo.FindByCode(ctx, code)
+	if err != nil {
+		if errors.Is(err, coupons.ErrCouponNotFound) {
+			return nil, fmt.Errorf("coupon %q is not valid", code)
+		}
+		return nil, err
+	}
+	if !c.Active {
+		return nil, fmt.Errorf("coupon %q is not active", code)
+	}
+	if c.ExpiresAt != nil && time.Now().After(*c.ExpiresAt) {
+		return nil, fmt.Errorf("coupon %q has expired", code)
+	}
+	if subtotalCents < c.MinCartCents {
+		return nil, fmt.Errorf("coupon %q requires a minimum cart of %d cents", code, c.MinCartCents)
+	}
+	if c.MaxUses != nil && c.UsedCount >= *c.MaxUses {
+		return nil, fmt.Errorf("coupon %q has reached its usage limit", code)
+	}
+	return c, nil
 }
 
 // computeDiscountCents returns the (positive) reduction a coupon yields on a subtotal.

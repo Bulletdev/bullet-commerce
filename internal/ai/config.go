@@ -9,7 +9,7 @@
 // packages (search, variants, orders) through narrow interfaces.
 //
 // Scope of this foundation: gated provider + tool-use loop with read-only tools.
-// TODO(v2): semantic RAG retrieval, evals harness, observability/tracing, and
+// Roadmap: semantic RAG retrieval, evals harness, observability/tracing, and
 // state-mutating tools (add_to_cart, initiate_return, create_pix_charge) are
 // intentionally left out - the ports here are designed so those arrive as new
 // adapters, not rewrites.

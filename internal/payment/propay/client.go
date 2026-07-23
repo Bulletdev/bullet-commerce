@@ -38,6 +38,11 @@ import (
 
 const providerName = payment.Name("propay")
 
+// serviceName is the machine-to-machine identity bullet-commerce presents to ProPay
+// (service/user_id/iss/sub on the outbound service JWT). Single source so all four
+// claim fields stay in lockstep.
+const serviceName = "bullet-commerce"
+
 // serviceTokenTTL bounds how long an outbound service JWT is valid. Kept short so
 // a captured token has a small replay window; the acceptance criteria pin exp<=5min.
 const serviceTokenTTL = 5 * time.Minute
@@ -92,12 +97,12 @@ type serviceClaims struct {
 func (c *Client) signServiceToken() (string, error) {
 	now := time.Now()
 	claims := serviceClaims{
-		Service: "bullet-commerce",
-		UserID:  "bullet-commerce",
+		Service: serviceName,
+		UserID:  serviceName,
 		Role:    "service",
 		RegisteredClaims: jwt.RegisteredClaims{
-			Issuer:    "bullet-commerce",
-			Subject:   "bullet-commerce",
+			Issuer:    serviceName,
+			Subject:   serviceName,
 			Audience:  jwt.ClaimStrings{"propay"},
 			ExpiresAt: jwt.NewNumericDate(now.Add(serviceTokenTTL)),
 			IssuedAt:  jwt.NewNumericDate(now),
@@ -237,7 +242,7 @@ func (c *Client) do(ctx context.Context, method, path string, payloadBody any, i
 		httpReq.Header.Set("Idempotency-Key", idempotencyKey)
 	}
 
-	// TODO(phase2): circuit breaker portado do riot-gateway
+	// Roadmap: circuit breaker portado do riot-gateway
 	resp, err := c.http.Do(httpReq)
 	if err != nil {
 		return nil, fmt.Errorf("propay: %s %s: %w", method, path, err)

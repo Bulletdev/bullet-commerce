@@ -9,7 +9,7 @@ import (
 // maxToolIters is the AI_MAX_TOOL_ITERS ceiling (default 5). WHY a hard cap: it
 // is the effective cost/latency guard on the default Haiku path - Haiku 4.5 does
 // not support task_budget, so a bounded loop is what prevents a runaway
-// tool-use cycle. TODO(v2): a per-conversation accumulated-cost guard and
+// tool-use cycle. Roadmap: a per-conversation accumulated-cost guard and
 // task_budget on the Sonnet/Opus escalation path.
 const maxToolIters = 5
 
@@ -89,7 +89,7 @@ func NewAgent(cfg Config, provider LLMProvider, tools ToolRegistry) *Agent {
 // Run drives the request -> tool_use -> execute -> continue loop until the model
 // ends its turn, emitting events via emit. The context must already carry the
 // authenticated user id (see WithUserID) so user-scoped tools can enforce
-// isolation. TODO(v2): model routing (escalate Haiku -> ModelHard on ambiguous /
+// isolation. Roadmap: model routing (escalate Haiku -> ModelHard on ambiguous /
 // multi-step / low-confidence intents); for now every turn runs on ModelDefault
 // with no effort - the Effort field on LLMRequest is the seam for that escalation.
 func (a *Agent) Run(ctx context.Context, userInput string, emit func(AgentEvent)) error {

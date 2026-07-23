@@ -304,15 +304,25 @@ func (s *claudeStream) pump(ctx context.Context, sdk *ssestream.Stream[anthropic
 		return
 	}
 
-	for _, blk := range acc.Content {
+	if !s.emitToolCalls(ctx, acc.Content) {
+		return
+	}
+	s.send(ctx, StreamEvent{Kind: EventEnd, StopReason: string(acc.StopReason), Usage: toUsage(acc.Usage)})
+}
+
+// emitToolCalls drains the accumulated message's tool_use blocks into the
+// stream. It returns false if the consumer cancelled mid-emit, so pump can bail
+// out without sending the terminal end event.
+func (s *claudeStream) emitToolCalls(ctx context.Context, content []anthropic.ContentBlockUnion) bool {
+	for _, blk := range content {
 		if blk.Type == "tool_use" {
 			tc := ToolCall{ID: blk.ID, Name: blk.Name, Input: json.RawMessage(blk.Input)}
 			if !s.send(ctx, StreamEvent{Kind: EventToolUse, ToolCall: &tc}) {
-				return
+				return false
 			}
 		}
 	}
-	s.send(ctx, StreamEvent{Kind: EventEnd, StopReason: string(acc.StopReason), Usage: toUsage(acc.Usage)})
+	return true
 }
 
 // send delivers one event, bailing out if the consumer cancelled (Close) so the

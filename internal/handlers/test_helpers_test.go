@@ -68,7 +68,7 @@ func (m *MockOrderRepository) UpdateOrderStatus(ctx context.Context, orderID uui
 func (m *MockOrderRepository) UpdateOrderTracking(ctx context.Context, orderID uuid.UUID, tracking string) error {
 	return m.Called(ctx, orderID, tracking).Error(0)
 }
-func (m *MockOrderRepository) ExpireOrphanedOrders(ctx context.Context) (int64, error) {
+func (m *MockOrderRepository) ExpireOrphanedOrders(ctx context.Context) (int64, error) { // NOSONAR trivial testify mock delegation
 	args := m.Called(ctx)
 	return args.Get(0).(int64), args.Error(1)
 }
@@ -149,7 +149,7 @@ func (m *MockProductRepository) FindByID(ctx context.Context, id uuid.UUID) (*mo
 	}
 	return args.Get(0).(*models.Product), args.Error(1)
 }
-func (m *MockProductRepository) FindByIDAdmin(ctx context.Context, id uuid.UUID) (*models.Product, error) {
+func (m *MockProductRepository) FindByIDAdmin(ctx context.Context, id uuid.UUID) (*models.Product, error) { // NOSONAR trivial testify mock delegation
 	args := m.Called(ctx, id)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
@@ -242,7 +242,7 @@ func (m *MockCategoryRepository) Create(ctx context.Context, category *models.Ca
 	args := m.Called(ctx, category)
 	return args.Error(0)
 }
-func (m *MockCategoryRepository) Update(ctx context.Context, category *models.Category) error {
+func (m *MockCategoryRepository) Update(ctx context.Context, category *models.Category) error { // NOSONAR trivial testify mock delegation
 	args := m.Called(ctx, category)
 	return args.Error(0)
 }
@@ -285,15 +285,15 @@ func (m *MockAddressRepository) Delete(ctx context.Context, userID, addressID uu
 	args := m.Called(ctx, userID, addressID)
 	return args.Error(0)
 }
-func (m *MockAddressRepository) SetDefault(ctx context.Context, userID, addressID uuid.UUID) error {
+func (m *MockAddressRepository) SetDefault(ctx context.Context, userID, addressID uuid.UUID) error { // NOSONAR trivial testify mock delegation
 	args := m.Called(ctx, userID, addressID)
 	return args.Error(0)
 }
-func (m *MockAddressRepository) SetDefaultBilling(ctx context.Context, userID, addressID uuid.UUID) error {
+func (m *MockAddressRepository) SetDefaultBilling(ctx context.Context, userID, addressID uuid.UUID) error { // NOSONAR trivial testify mock delegation
 	args := m.Called(ctx, userID, addressID)
 	return args.Error(0)
 }
-func (m *MockAddressRepository) SetDefaultShipping(ctx context.Context, userID, addressID uuid.UUID) error {
+func (m *MockAddressRepository) SetDefaultShipping(ctx context.Context, userID, addressID uuid.UUID) error { // NOSONAR trivial testify mock delegation
 	args := m.Called(ctx, userID, addressID)
 	return args.Error(0)
 }
@@ -350,7 +350,7 @@ func (m *MockCartRepository) AddCouponCode(ctx context.Context, cartID uuid.UUID
 	}
 	return args.Get(0).(*models.Cart), args.Error(1)
 }
-func (m *MockCartRepository) RemoveCouponCode(ctx context.Context, cartID uuid.UUID, code string) (*models.Cart, error) {
+func (m *MockCartRepository) RemoveCouponCode(ctx context.Context, cartID uuid.UUID, code string) (*models.Cart, error) { // NOSONAR trivial testify mock delegation
 	args := m.Called(ctx, cartID, code)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)

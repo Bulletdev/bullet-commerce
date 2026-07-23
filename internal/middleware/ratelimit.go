@@ -3,7 +3,7 @@ package middleware
 // RateLimit is an in-memory, per-client-IP token-bucket limiter exposed as a
 // gorilla/mux MiddlewareFunc so it can be mounted on any subrouter.
 //
-//	RateLimit(requestsPerMinute int, burst int) mux.MiddlewareFunc
+//	RateLimit(requestsPerMinute, burst int) mux.MiddlewareFunc
 //
 // The same constructor drives both a strict auth limiter and a looser checkout
 // limiter - the caller picks the numbers. Suggested wiring (done by the
@@ -60,7 +60,7 @@ type rateLimiter struct {
 // RateLimit returns a mux.MiddlewareFunc that admits at most requestsPerMinute
 // sustained requests per client IP, allowing short spikes up to burst. On refusal
 // it answers 429 with a JSON body and a Retry-After header (whole seconds).
-func RateLimit(requestsPerMinute int, burst int) mux.MiddlewareFunc {
+func RateLimit(requestsPerMinute, burst int) mux.MiddlewareFunc {
 	if requestsPerMinute < 1 {
 		requestsPerMinute = 1
 	}

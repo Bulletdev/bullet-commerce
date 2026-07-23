@@ -28,7 +28,7 @@ func (m *MockVariantRepository) FindByID(ctx context.Context, id uuid.UUID) (*mo
 	return ret.Get(0).(*models.ProductVariant), ret.Error(1)
 }
 
-func (m *MockVariantRepository) FindPublishedByID(ctx context.Context, id uuid.UUID) (*models.ProductVariant, error) {
+func (m *MockVariantRepository) FindPublishedByID(ctx context.Context, id uuid.UUID) (*models.ProductVariant, error) { // NOSONAR trivial testify mock delegation
 	ret := m.Called(ctx, id)
 	if ret.Get(0) == nil {
 		return nil, ret.Error(1)

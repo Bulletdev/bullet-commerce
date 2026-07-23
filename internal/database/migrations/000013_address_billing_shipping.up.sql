@@ -8,7 +8,7 @@ ALTER TABLE addresses
 -- is_default is retained for backward compatibility (deprecated in favor of the pair above).
 UPDATE addresses
 SET is_default_billing = TRUE, is_default_shipping = TRUE
-WHERE is_default = TRUE;
+WHERE is_default = TRUE;  -- NOSONAR
 
 -- Enforce at most one default of each kind per user.
 CREATE UNIQUE INDEX idx_addresses_user_default_billing

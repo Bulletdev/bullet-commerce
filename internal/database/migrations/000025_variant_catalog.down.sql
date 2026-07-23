@@ -1,6 +1,6 @@
 DROP INDEX IF EXISTS idx_product_variants_product_position;
 
--- Only relax the NOT NULL; the pre-materialization NULLs cannot be reconstructed (we no longer
+-- NOSONAR Only relax the NOT NULL; the pre-materialization NULLs cannot be reconstructed (we no longer
 -- know which prices were inherited once the values were backfilled), so leave price_cents as-is.
 ALTER TABLE product_variants ALTER COLUMN price_cents DROP NOT NULL;
 

@@ -43,6 +43,14 @@ import (
 
 const defaultJWTExpiry = 24 * time.Hour
 
+// Shared route templates: the UUID-constrained path segments repeat across the public,
+// protected and admin subrouters, so they live here once to keep the strings identical.
+const (
+	productByIDPath  = "/products/{id:[0-9a-fA-F-]+}"
+	categoryByIDPath = "/categories/{id:[0-9a-fA-F-]+}"
+	variantIDPath    = "{variantId:[0-9a-fA-F-]+}"
+)
+
 // repositories groups the data-access ports plus the shared pricing helper so main can
 // wire handlers without threading a dozen separate values through the call graph.
 type repositories struct {
@@ -301,7 +309,10 @@ func setupRoutes(cfg *config.Config, h httpHandlers, mw *auth.Middleware) *mux.R
 
 	// Global OPTIONS handler so the CORS middleware intercepts preflight requests
 	// before gorilla/mux returns 404 for unmatched methods.
-	r.PathPrefix("/").Methods(http.MethodOptions).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})
+	r.PathPrefix("/").Methods(http.MethodOptions).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Intentionally empty: the CORS middleware answers preflight; this route only exists
+		// so gorilla/mux matches OPTIONS instead of returning 404.
+	})
 
 	r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		webutils.WriteJSON(w, http.StatusOK, map[string]string{
@@ -341,12 +352,12 @@ func registerPublicRoutes(api *mux.Router, h httpHandlers) {
 	api.HandleFunc("/products/search", h.product.SearchProducts).Methods(http.MethodGet)
 	api.HandleFunc("/products/featured", h.product.GetFeaturedProducts).Methods(http.MethodGet)
 	api.HandleFunc("/products/category/{id:[0-9a-fA-F-]+}", h.product.GetProductsByCategory).Methods(http.MethodGet)
-	api.HandleFunc("/products/{id:[0-9a-fA-F-]+}", h.product.GetProduct).Methods(http.MethodGet)
+	api.HandleFunc(productByIDPath, h.product.GetProduct).Methods(http.MethodGet)
 	// Public product reviews (approved-only, paginated).
-	api.HandleFunc("/products/{id:[0-9a-fA-F-]+}/reviews", h.review.ListReviews).Methods(http.MethodGet)
+	api.HandleFunc(productByIDPath+"/reviews", h.review.ListReviews).Methods(http.MethodGet)
 
 	api.HandleFunc("/categories", h.category.GetAllCategories).Methods(http.MethodGet)
-	api.HandleFunc("/categories/{id:[0-9a-fA-F-]+}", h.category.GetCategory).Methods(http.MethodGet)
+	api.HandleFunc(categoryByIDPath, h.category.GetCategory).Methods(http.MethodGet)
 
 	api.HandleFunc("/orders/tracking/{number}", h.order.TrackOrder).Methods(http.MethodGet)
 	api.HandleFunc("/shipping/cep/{cep}", handlers.LookupCep).Methods(http.MethodGet)
@@ -385,7 +396,7 @@ func registerProtectedRoutes(api *mux.Router, h httpHandlers, mw *auth.Middlewar
 	protected.HandleFunc("/cart", h.cart.ClearCart).Methods(http.MethodDelete)
 
 	// Authenticated product review submission (one per user per product; user_id from JWT).
-	protected.HandleFunc("/products/{id:[0-9a-fA-F-]+}/reviews", h.review.CreateReview).Methods(http.MethodPost)
+	protected.HandleFunc(productByIDPath+"/reviews", h.review.CreateReview).Methods(http.MethodPost)
 
 	// Registered only when the AI assistant is active (see buildAIHandler): no key, no route.
 	if h.ai != nil {
@@ -413,21 +424,21 @@ func registerAdminRoutes(api *mux.Router, h httpHandlers, mw *auth.Middleware) {
 	admin.Use(mw.RequireAdmin)
 
 	admin.HandleFunc("/products", h.product.CreateProduct).Methods(http.MethodPost)
-	admin.HandleFunc("/products/{id:[0-9a-fA-F-]+}", h.product.UpdateProduct).Methods(http.MethodPut)
-	admin.HandleFunc("/products/{id:[0-9a-fA-F-]+}", h.product.DeleteProduct).Methods(http.MethodDelete)
-	admin.HandleFunc("/products/{id:[0-9a-fA-F-]+}/stock", h.product.UpdateStock).Methods(http.MethodPatch)
-	admin.HandleFunc("/products/{id:[0-9a-fA-F-]+}/variants", h.product.CreateVariant).Methods(http.MethodPost)
-	admin.HandleFunc("/products/{id:[0-9a-fA-F-]+}/variants/{variantId:[0-9a-fA-F-]+}/stock", h.product.UpdateVariantStock).Methods(http.MethodPatch)
+	admin.HandleFunc(productByIDPath, h.product.UpdateProduct).Methods(http.MethodPut)
+	admin.HandleFunc(productByIDPath, h.product.DeleteProduct).Methods(http.MethodDelete)
+	admin.HandleFunc(productByIDPath+"/stock", h.product.UpdateStock).Methods(http.MethodPatch)
+	admin.HandleFunc(productByIDPath+"/variants", h.product.CreateVariant).Methods(http.MethodPost)
+	admin.HandleFunc(productByIDPath+"/variants/"+variantIDPath+"/stock", h.product.UpdateVariantStock).Methods(http.MethodPatch)
 
 	// Product media: register by URL, mint a presigned upload URL (501 when storage is off),
 	// and delete. All admin-only.
-	admin.HandleFunc("/products/{id:[0-9a-fA-F-]+}/media", h.media.AddMedia).Methods(http.MethodPost)
+	admin.HandleFunc(productByIDPath+"/media", h.media.AddMedia).Methods(http.MethodPost)
 	admin.HandleFunc("/media/upload-url", h.media.UploadURL).Methods(http.MethodPost)
 	admin.HandleFunc("/media/{id:[0-9a-fA-F-]+}", h.media.DeleteMedia).Methods(http.MethodDelete)
 
 	admin.HandleFunc("/categories", h.category.CreateCategory).Methods(http.MethodPost)
-	admin.HandleFunc("/categories/{id:[0-9a-fA-F-]+}", h.category.UpdateCategory).Methods(http.MethodPut)
-	admin.HandleFunc("/categories/{id:[0-9a-fA-F-]+}", h.category.DeleteCategory).Methods(http.MethodDelete)
+	admin.HandleFunc(categoryByIDPath, h.category.UpdateCategory).Methods(http.MethodPut)
+	admin.HandleFunc(categoryByIDPath, h.category.DeleteCategory).Methods(http.MethodDelete)
 
 	admin.HandleFunc("/orders/{id:[0-9a-fA-F-]+}/tracking", h.order.UpdateTracking).Methods(http.MethodPatch)
 	// Refund (financial reversal + opt-in per-item restock). Admin-only; 501 if the PSP can't refund.

@@ -120,7 +120,7 @@ func (_m *MockAddressRepository) Delete(ctx context.Context, userID, addressID u
 }
 
 // SetDefault provides a mock function with given fields: ctx, userID, addressID
-func (_m *MockAddressRepository) SetDefault(ctx context.Context, userID, addressID uuid.UUID) error {
+func (_m *MockAddressRepository) SetDefault(ctx context.Context, userID, addressID uuid.UUID) error { // NOSONAR trivial testify mock delegation
 	ret := _m.Called(ctx, userID, addressID)
 
 	var r0 error
@@ -134,7 +134,7 @@ func (_m *MockAddressRepository) SetDefault(ctx context.Context, userID, address
 }
 
 // SetDefaultBilling provides a mock function with given fields: ctx, userID, addressID
-func (_m *MockAddressRepository) SetDefaultBilling(ctx context.Context, userID, addressID uuid.UUID) error {
+func (_m *MockAddressRepository) SetDefaultBilling(ctx context.Context, userID, addressID uuid.UUID) error { // NOSONAR trivial testify mock delegation
 	ret := _m.Called(ctx, userID, addressID)
 
 	var r0 error
@@ -148,7 +148,7 @@ func (_m *MockAddressRepository) SetDefaultBilling(ctx context.Context, userID, 
 }
 
 // SetDefaultShipping provides a mock function with given fields: ctx, userID, addressID
-func (_m *MockAddressRepository) SetDefaultShipping(ctx context.Context, userID, addressID uuid.UUID) error {
+func (_m *MockAddressRepository) SetDefaultShipping(ctx context.Context, userID, addressID uuid.UUID) error { // NOSONAR trivial testify mock delegation
 	ret := _m.Called(ctx, userID, addressID)
 
 	var r0 error

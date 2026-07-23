@@ -127,7 +127,7 @@ func TestUserHandler_GetMe(t *testing.T) {
 	}
 }
 
-func TestUserHandler_ListAddresses(t *testing.T) {
+func TestUserHandler_ListAddresses(t *testing.T) { // NOSONAR table-driven test
 	testUserID := uuid.New()
 	anotherUserID := uuid.New()
 	testToken, err := generateTestToken(testUserID)
@@ -251,7 +251,7 @@ func TestUserHandler_ListAddresses(t *testing.T) {
 	}
 }
 
-func TestUserHandler_AddAddress(t *testing.T) {
+func TestUserHandler_AddAddress(t *testing.T) { // NOSONAR table-driven test
 	testUserID := uuid.New()
 	anotherUserID := uuid.New()
 	testToken, err := generateTestToken(testUserID)
@@ -433,7 +433,7 @@ func TestUserHandler_AddAddress(t *testing.T) {
 	}
 }
 
-func TestUserHandler_UpdateAddress(t *testing.T) {
+func TestUserHandler_UpdateAddress(t *testing.T) { // NOSONAR table-driven test
 	testUserID := uuid.New()
 	anotherUserID := uuid.New()
 	addressID := uuid.New()
@@ -651,7 +651,7 @@ func TestUserHandler_UpdateAddress(t *testing.T) {
 	}
 }
 
-func TestUserHandler_DeleteAddress(t *testing.T) {
+func TestUserHandler_DeleteAddress(t *testing.T) { // NOSONAR table-driven test
 	testUserID := uuid.New()
 	anotherUserID := uuid.New()
 	addressID := uuid.New()
@@ -950,7 +950,7 @@ func TestUserHandler_SetDefaultShippingAddress(t *testing.T) {
 	}
 }
 
-func TestUserHandler_SetDefaultAddress(t *testing.T) {
+func TestUserHandler_SetDefaultAddress(t *testing.T) { // NOSONAR table-driven test
 	testUserID := uuid.New()
 	anotherUserID := uuid.New()
 	addressID := uuid.New()

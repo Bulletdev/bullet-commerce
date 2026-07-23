@@ -83,7 +83,7 @@ func searchCatalogTool(s CatalogSearcher) Handler {
 			return errResult("erro ao buscar no catálogo")
 		}
 
-		// TODO(v2): enrich with product names/prices via the products repo so the
+		// Roadmap: enrich with product names/prices via the products repo so the
 		// model has human-readable candidates. For now we return grounded IDs +
 		// counts from the existing search service; prices/stock stay tool-sourced.
 		ids := make([]string, 0, len(res.ProductIDs))

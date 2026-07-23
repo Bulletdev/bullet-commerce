@@ -181,7 +181,7 @@ func (_m *MockCartRepository) AddCouponCode(ctx context.Context, cartID uuid.UUI
 }
 
 // RemoveCouponCode mocks base method
-func (_m *MockCartRepository) RemoveCouponCode(ctx context.Context, cartID uuid.UUID, code string) (*models.Cart, error) {
+func (_m *MockCartRepository) RemoveCouponCode(ctx context.Context, cartID uuid.UUID, code string) (*models.Cart, error) { // NOSONAR trivial testify mock delegation
 	ret := _m.Called(ctx, cartID, code)
 	if ret.Get(0) == nil {
 		return nil, ret.Error(1)

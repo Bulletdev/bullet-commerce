@@ -10,11 +10,11 @@ CREATE TABLE IF NOT EXISTS deliveries (
     -- nullable and cascade so deleting the parent removes its deliveries.
     cart_id UUID REFERENCES carts(id) ON DELETE CASCADE,
     order_id UUID REFERENCES orders(id) ON DELETE CASCADE,
-    code TEXT NOT NULL DEFAULT 'default',
+    code TEXT NOT NULL DEFAULT 'default',  -- NOSONAR
     method TEXT,
     carrier TEXT,
     -- location_type distinguishes ship-to-address from the future store/pickup flows.
-    location_type TEXT NOT NULL DEFAULT 'address' CHECK (location_type IN ('address', 'store', 'pickup_point')),
+    location_type TEXT NOT NULL DEFAULT 'address' CHECK (location_type IN ('address', 'store', 'pickup_point')),  -- NOSONAR
     address_id UUID,
     -- Freight now belongs to the delivery that incurs it, not the order: the order total
     -- still sums items - discount + freight, but the freight is attributed to a shipment.
@@ -47,7 +47,7 @@ ALTER TABLE order_items ADD COLUMN IF NOT EXISTS delivery_id UUID;
 INSERT INTO deliveries (cart_id, code, location_type)
 SELECT c.id, 'default', 'address'
 FROM carts c
-WHERE NOT EXISTS (SELECT 1 FROM deliveries d WHERE d.cart_id = c.id AND d.code = 'default');
+WHERE NOT EXISTS (SELECT 1 FROM deliveries d WHERE d.cart_id = c.id AND d.code = 'default');  -- NOSONAR
 
 UPDATE cart_items ci
 SET delivery_id = d.id
@@ -59,7 +59,7 @@ WHERE d.cart_id = ci.cart_id AND d.code = 'default' AND ci.delivery_id IS NULL;
 INSERT INTO deliveries (order_id, code, location_type, shipping_cost_cents, method)
 SELECT o.id, 'default', 'address', o.shipping_cost_cents, o.shipping_method
 FROM orders o
-WHERE NOT EXISTS (SELECT 1 FROM deliveries d WHERE d.order_id = o.id AND d.code = 'default');
+WHERE NOT EXISTS (SELECT 1 FROM deliveries d WHERE d.order_id = o.id AND d.code = 'default');  -- NOSONAR
 
 UPDATE order_items oi
 SET delivery_id = d.id

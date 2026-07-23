@@ -244,13 +244,13 @@ func (r *postgresOrderRepository) FindOrderByID(ctx context.Context, orderID uui
 	return order, items, rows.Err()
 }
 
-// scanRow is satisfied by both pgx.Row and pgx.Rows, so scanOrder serves single-row and
+// rowScanner is satisfied by both pgx.Row and pgx.Rows, so scanOrder serves single-row and
 // multi-row reads with one column list.
-type scanRow interface {
+type rowScanner interface {
 	Scan(dest ...any) error
 }
 
-func scanOrder(row scanRow) (*models.Order, error) {
+func scanOrder(row rowScanner) (*models.Order, error) {
 	o := &models.Order{}
 	err := row.Scan(
 		&o.ID, &o.UserID, &o.ShippingAddressID, &o.Status, &o.PaymentStatus,

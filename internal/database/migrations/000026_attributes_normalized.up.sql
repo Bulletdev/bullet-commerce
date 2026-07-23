@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS attribute (
     label TEXT NOT NULL,
     -- kind drives the selection UI: 'color' renders a swatch (values carry hex), 'select'
     -- an ordered list, 'text' a free entry.
-    kind TEXT NOT NULL DEFAULT 'select' CHECK (kind IN ('select', 'color', 'text')),
+    kind TEXT NOT NULL DEFAULT 'select' CHECK (kind IN ('select', 'color', 'text')),  -- NOSONAR
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

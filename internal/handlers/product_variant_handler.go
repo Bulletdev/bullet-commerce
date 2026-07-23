@@ -101,19 +101,8 @@ func (h *ProductHandler) writeVariantStock(w http.ResponseWriter, r *http.Reques
 		return nil, false
 	}
 
-	var source *models.Source
-	var err error
-	if srcOverride != nil {
-		if source, err = h.SourceRepo.GetByID(r.Context(), *srcOverride); err != nil {
-			if errors.Is(err, sourcing.ErrSourceNotFound) {
-				webutils.ErrorJSON(w, err, http.StatusNotFound)
-			} else {
-				webutils.ErrorJSON(w, errors.New("failed to resolve source"), http.StatusInternalServerError)
-			}
-			return nil, false
-		}
-	} else if source, err = h.SourceRepo.GetDefault(r.Context()); err != nil {
-		webutils.ErrorJSON(w, errors.New("no default source configured"), http.StatusInternalServerError)
+	source, ok := h.resolveStockSource(w, r, srcOverride)
+	if !ok {
 		return nil, false
 	}
 
@@ -141,6 +130,31 @@ func (h *ProductHandler) writeVariantStock(w http.ResponseWriter, r *http.Reques
 		ReservedAtSource: reservedAtSource,
 		StockAvailable:   available,
 	}, true
+}
+
+// resolveStockSource picks the (variant, source) write target: an explicit override must already
+// exist (404, never created implicitly), otherwise the transparent default source. Returns ok=false
+// after already having written the error response.
+func (h *ProductHandler) resolveStockSource(w http.ResponseWriter, r *http.Request, srcOverride *uuid.UUID) (*models.Source, bool) {
+	if srcOverride != nil {
+		source, err := h.SourceRepo.GetByID(r.Context(), *srcOverride)
+		if err != nil {
+			if errors.Is(err, sourcing.ErrSourceNotFound) {
+				webutils.ErrorJSON(w, err, http.StatusNotFound)
+			} else {
+				webutils.ErrorJSON(w, errors.New("failed to resolve source"), http.StatusInternalServerError)
+			}
+			return nil, false
+		}
+		return source, true
+	}
+
+	source, err := h.SourceRepo.GetDefault(r.Context())
+	if err != nil {
+		webutils.ErrorJSON(w, errors.New("no default source configured"), http.StatusInternalServerError)
+		return nil, false
+	}
+	return source, true
 }
 
 // CreateVariant handles POST /api/products/{id}/variants (admin).

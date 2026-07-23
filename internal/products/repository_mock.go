@@ -28,7 +28,7 @@ func (m *MockProductRepository) FindByID(ctx context.Context, id uuid.UUID) (*mo
 	return ret.Get(0).(*models.Product), ret.Error(1)
 }
 
-func (m *MockProductRepository) FindByIDAdmin(ctx context.Context, id uuid.UUID) (*models.Product, error) {
+func (m *MockProductRepository) FindByIDAdmin(ctx context.Context, id uuid.UUID) (*models.Product, error) { // NOSONAR trivial testify mock delegation
 	ret := m.Called(ctx, id)
 	if ret.Get(0) == nil {
 		return nil, ret.Error(1)

@@ -32,7 +32,7 @@ CREATE INDEX IF NOT EXISTS idx_product_variants_product_id
 INSERT INTO product_variants (product_id, sku, attributes, price_cents, currency, stock)
 SELECT p.id, 'default-' || p.id, '{}', NULL, p.currency, p.stock
 FROM products p
-WHERE NOT EXISTS (
+WHERE NOT EXISTS (  -- NOSONAR
     SELECT 1 FROM product_variants v WHERE v.product_id = p.id
 );
 

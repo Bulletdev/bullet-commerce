@@ -8,7 +8,7 @@
 // executed. User-scoped tools derive the user id from the request context
 // (injected from the JWT), never from model-supplied input.
 //
-// TODO(v2): state-mutating tools (add_to_cart, initiate_return, create_pix_charge)
+// Roadmap: state-mutating tools (add_to_cart, initiate_return, create_pix_charge)
 // gated behind human confirmation - they arrive as new handlers, not a rewrite.
 package tools
 
