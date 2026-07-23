@@ -38,9 +38,52 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 const defaultJWTExpiry = 24 * time.Hour
+
+// repositories groups the data-access ports plus the shared pricing helper so main can
+// wire handlers without threading a dozen separate values through the call graph.
+type repositories struct {
+	user     users.UserRepository
+	product  products.ProductRepository
+	variant  variants.VariantRepository
+	media    media.MediaRepository
+	category categories.CategoryRepository
+	address  addresses.AddressRepository
+	cart     cart.CartRepository
+	review   reviews.ReviewRepository
+	search   search.Service
+	source   sourcing.SourceRepository
+	order    orders.OrderRepository
+	voucher  *promotions.CouponHandler
+}
+
+// providers groups the outbound infrastructure adapters built from config.
+type providers struct {
+	shipping shipping.Provider
+	payment  *payment.Registry
+	storage  storage.Provider
+}
+
+// httpHandlers bundles every HTTP handler so route registration takes one value
+// instead of one argument per domain.
+type httpHandlers struct {
+	health   *handlers.HealthHandler
+	auth     *handlers.AuthHandler
+	user     *handlers.UserHandler
+	product  *handlers.ProductHandler
+	media    *handlers.MediaHandler
+	category *handlers.CategoryHandler
+	cart     *handlers.CartHandler
+	order    *handlers.OrderHandler
+	shipping *handlers.ShippingHandler
+	search   *handlers.SearchHandler
+	review   *handlers.ReviewHandler
+	webhook  *handlers.WebhookHandler
+	ai       *ai.ChatHandler
+}
 
 func main() {
 	cfg := config.Load()
@@ -54,6 +97,20 @@ func main() {
 	}
 	defer dbPool.Close()
 
+	repos := buildRepositories(dbPool)
+	provs := buildProviders(cfg)
+	h := buildHandlers(cfg, dbPool, repos, provs)
+
+	authMiddleware := auth.NewMiddleware(cfg.JWTSecret, repos.user)
+
+	r := setupRoutes(cfg, h, authMiddleware)
+
+	startCleanupWorkers(repos.order)
+
+	runServer(r, cfg)
+}
+
+func buildRepositories(dbPool *pgxpool.Pool) repositories {
 	userRepo := users.NewPostgresUserRepository(dbPool)
 	productRepo := products.NewPostgresProductRepository(dbPool)
 	variantRepo := variants.NewPostgresVariantRepository(dbPool)
@@ -88,6 +145,23 @@ func main() {
 
 	orderRepo := orders.NewPostgresOrderRepository(dbPool, variantRepo, chargeRepo, bus, voucherHandler, couponRepo, allocator)
 
+	return repositories{
+		user:     userRepo,
+		product:  productRepo,
+		variant:  variantRepo,
+		media:    mediaRepo,
+		category: categoryRepo,
+		address:  addressRepo,
+		cart:     cartRepo,
+		review:   reviewRepo,
+		search:   searchService,
+		source:   sourceRepo,
+		order:    orderRepo,
+		voucher:  voucherHandler,
+	}
+}
+
+func buildProviders(cfg *config.Config) providers {
 	// Shipping provider (12-factor: origin CEP and rules from config).
 	shippingProvider := shipping.NewTableProvider(cfg.ShippingSenderCEP, shipping.DefaultBrazilRules())
 
@@ -126,48 +200,65 @@ func main() {
 		storageProvider = provider
 	}
 
+	return providers{
+		shipping: shippingProvider,
+		payment:  paymentRegistry,
+		storage:  storageProvider,
+	}
+}
+
+func buildHandlers(cfg *config.Config, dbPool *pgxpool.Pool, repos repositories, provs providers) httpHandlers {
 	hasher := auth.NewArgon2idHasher()
 
-	healthHandler := handlers.NewHealthHandler(dbPool, handlers.HealthInfo{
-		PaymentProvider:   cfg.PaymentProvider,
-		PaymentConfigured: cfg.ProPayURL != "",
-		AIEnabled:         cfg.FeatureAIAssistant && cfg.AnthropicAPIKey != "",
-	})
-	authHandler := handlers.NewAuthHandler(userRepo, hasher, cfg.JWTSecret, defaultJWTExpiry)
-	userHandler := handlers.NewUserHandler(userRepo, addressRepo)
-	productHandler := handlers.NewProductHandler(productRepo, variantRepo, mediaRepo, sourceRepo)
-	mediaHandler := handlers.NewMediaHandler(mediaRepo, storageProvider)
-	categoryHandler := handlers.NewCategoryHandler(categoryRepo)
-	cartHandler := handlers.NewCartHandler(cartRepo, productRepo, variantRepo, voucherHandler)
-	orderHandler := handlers.NewOrderHandler(orderRepo, cartRepo, addressRepo, paymentRegistry, payment.Name(cfg.PaymentProvider))
-	shippingHandler := handlers.NewShippingHandler(shippingProvider)
-	searchHandler := handlers.NewSearchHandler(searchService)
-	reviewHandler := handlers.NewReviewHandler(reviewRepo)
-	webhookHandler := handlers.NewWebhookHandler(orderRepo, paymentRegistry, payment.Name(cfg.PaymentProvider))
+	return httpHandlers{
+		health: handlers.NewHealthHandler(dbPool, handlers.HealthInfo{
+			PaymentProvider:   cfg.PaymentProvider,
+			PaymentConfigured: cfg.ProPayURL != "",
+			AIEnabled:         cfg.FeatureAIAssistant && cfg.AnthropicAPIKey != "",
+		}),
+		auth:     handlers.NewAuthHandler(repos.user, hasher, cfg.JWTSecret, defaultJWTExpiry),
+		user:     handlers.NewUserHandler(repos.user, repos.address),
+		product:  handlers.NewProductHandler(repos.product, repos.variant, repos.media, repos.source),
+		media:    handlers.NewMediaHandler(repos.media, provs.storage),
+		category: handlers.NewCategoryHandler(repos.category),
+		cart:     handlers.NewCartHandler(repos.cart, repos.product, repos.variant, repos.voucher),
+		order:    handlers.NewOrderHandler(repos.order, repos.cart, repos.address, provs.payment, payment.Name(cfg.PaymentProvider)),
+		shipping: handlers.NewShippingHandler(provs.shipping),
+		search:   handlers.NewSearchHandler(repos.search),
+		review:   handlers.NewReviewHandler(repos.review),
+		webhook:  handlers.NewWebhookHandler(repos.order, provs.payment, payment.Name(cfg.PaymentProvider)),
+		ai:       buildAIHandler(cfg, repos),
+	}
+}
 
-	authMiddleware := auth.NewMiddleware(cfg.JWTSecret, userRepo)
-
-	// AI assistant: optional capability, off unless FEATURE_AI_ASSISTANT=true AND a key is set.
-	// When inactive the handler is nil and the route is never registered - no key, no endpoint.
-	var aiChatHandler *ai.ChatHandler
+// buildAIHandler returns the assistant chat handler, or nil when the AI assistant is
+// inactive (off unless FEATURE_AI_ASSISTANT=true AND a key is set). Nil means the route
+// is never registered - no key, no endpoint.
+func buildAIHandler(cfg *config.Config, repos repositories) *ai.ChatHandler {
 	aiCfg := ai.Config{Enabled: cfg.FeatureAIAssistant, APIKey: cfg.AnthropicAPIKey, ModelDefault: cfg.AIModelDefault, ModelHard: cfg.AIModelHard}
-	if aiCfg.Active() {
-		if provider, err := ai.NewClaudeProvider(aiCfg); err != nil {
-			slog.Error("AI assistant init failed; endpoint stays disabled", "error", err)
-		} else {
-			aiChatHandler = ai.NewChatHandler(aiCfg, provider, tools.NewRegistry(searchService, variantRepo, orderRepo))
-			slog.Info("AI assistant enabled")
-		}
-	} else {
+	if !aiCfg.Active() {
 		slog.Info("AI assistant disabled (set FEATURE_AI_ASSISTANT=true and ANTHROPIC_API_KEY to enable)")
+		return nil
 	}
 
-	r := setupRoutes(cfg, healthHandler, authHandler, userHandler, productHandler, mediaHandler, categoryHandler, cartHandler, orderHandler, shippingHandler, searchHandler, reviewHandler, webhookHandler, aiChatHandler, authMiddleware)
+	provider, err := ai.NewClaudeProvider(aiCfg)
+	if err != nil {
+		slog.Error("AI assistant init failed; endpoint stays disabled", "error", err)
+		return nil
+	}
 
-	// Orphaned order cleanup goroutines: two windows, each releases reservations.
+	slog.Info("AI assistant enabled")
+	return ai.NewChatHandler(aiCfg, provider, tools.NewRegistry(repos.search, repos.variant, repos.order))
+}
+
+// startCleanupWorkers launches the orphaned-order cleanup goroutines: two windows, each
+// releases reservations.
+func startCleanupWorkers(orderRepo orders.OrderRepository) {
 	go runCleanup("orphaned pending_payment orders", 30*time.Minute, orderRepo.ExpireOrphanedOrders)
 	go runCleanup("unpaid abandoned orders", 15*time.Minute, orderRepo.ExpireUnpaidOrders)
+}
 
+func runServer(r *mux.Router, cfg *config.Config) {
 	srv := &http.Server{
 		Addr:         ":" + cfg.Port,
 		Handler:      r,
@@ -201,23 +292,7 @@ func main() {
 	slog.Info("server stopped")
 }
 
-func setupRoutes(
-	cfg *config.Config,
-	hh *handlers.HealthHandler,
-	ah *handlers.AuthHandler,
-	uh *handlers.UserHandler,
-	ph *handlers.ProductHandler,
-	mediaH *handlers.MediaHandler,
-	ch *handlers.CategoryHandler,
-	cartH *handlers.CartHandler,
-	oh *handlers.OrderHandler,
-	sh *handlers.ShippingHandler,
-	searchH *handlers.SearchHandler,
-	reviewH *handlers.ReviewHandler,
-	wh *handlers.WebhookHandler,
-	aiChat *ai.ChatHandler,
-	mw *auth.Middleware,
-) *mux.Router {
+func setupRoutes(cfg *config.Config, h httpHandlers, mw *auth.Middleware) *mux.Router {
 	r := mux.NewRouter()
 
 	r.Use(middleware.RequestID)
@@ -238,112 +313,128 @@ func setupRoutes(
 		})
 	}).Methods(http.MethodGet)
 
-	r.HandleFunc("/health", hh.Liveness).Methods(http.MethodGet)
-	r.HandleFunc("/ready", hh.Readiness).Methods(http.MethodGet)
+	r.HandleFunc("/health", h.health.Liveness).Methods(http.MethodGet)
+	r.HandleFunc("/ready", h.health.Readiness).Methods(http.MethodGet)
 
 	api := r.PathPrefix("/api").Subrouter()
 
+	registerAuthLimitedRoutes(api, h)
+	registerPublicRoutes(api, h)
+	registerProtectedRoutes(api, h, mw)
+	registerOrderRoutes(api, h, mw)
+	registerAdminRoutes(api, h, mw)
+
+	return r
+}
+
+func registerAuthLimitedRoutes(api *mux.Router, h httpHandlers) {
 	// Auth endpoints are rate-limited per IP (credential-stuffing / brute-force defense).
 	// Its own subrouter so the limiter applies ONLY to register/login, not the whole /api tree.
 	authLimited := api.NewRoute().Subrouter()
 	authLimited.Use(middleware.RateLimit(10, 10))
-	authLimited.HandleFunc("/auth/register", ah.Register).Methods(http.MethodPost)
-	authLimited.HandleFunc("/auth/login", ah.Login).Methods(http.MethodPost)
+	authLimited.HandleFunc("/auth/register", h.auth.Register).Methods(http.MethodPost)
+	authLimited.HandleFunc("/auth/login", h.auth.Login).Methods(http.MethodPost)
+}
 
-	api.HandleFunc("/products", ph.GetAllProducts).Methods(http.MethodGet)
-	api.HandleFunc("/products/search", ph.SearchProducts).Methods(http.MethodGet)
-	api.HandleFunc("/products/featured", ph.GetFeaturedProducts).Methods(http.MethodGet)
-	api.HandleFunc("/products/category/{id:[0-9a-fA-F-]+}", ph.GetProductsByCategory).Methods(http.MethodGet)
-	api.HandleFunc("/products/{id:[0-9a-fA-F-]+}", ph.GetProduct).Methods(http.MethodGet)
+func registerPublicRoutes(api *mux.Router, h httpHandlers) {
+	api.HandleFunc("/products", h.product.GetAllProducts).Methods(http.MethodGet)
+	api.HandleFunc("/products/search", h.product.SearchProducts).Methods(http.MethodGet)
+	api.HandleFunc("/products/featured", h.product.GetFeaturedProducts).Methods(http.MethodGet)
+	api.HandleFunc("/products/category/{id:[0-9a-fA-F-]+}", h.product.GetProductsByCategory).Methods(http.MethodGet)
+	api.HandleFunc("/products/{id:[0-9a-fA-F-]+}", h.product.GetProduct).Methods(http.MethodGet)
 	// Public product reviews (approved-only, paginated).
-	api.HandleFunc("/products/{id:[0-9a-fA-F-]+}/reviews", reviewH.ListReviews).Methods(http.MethodGet)
+	api.HandleFunc("/products/{id:[0-9a-fA-F-]+}/reviews", h.review.ListReviews).Methods(http.MethodGet)
 
-	api.HandleFunc("/categories", ch.GetAllCategories).Methods(http.MethodGet)
-	api.HandleFunc("/categories/{id:[0-9a-fA-F-]+}", ch.GetCategory).Methods(http.MethodGet)
+	api.HandleFunc("/categories", h.category.GetAllCategories).Methods(http.MethodGet)
+	api.HandleFunc("/categories/{id:[0-9a-fA-F-]+}", h.category.GetCategory).Methods(http.MethodGet)
 
-	api.HandleFunc("/orders/tracking/{number}", oh.TrackOrder).Methods(http.MethodGet)
+	api.HandleFunc("/orders/tracking/{number}", h.order.TrackOrder).Methods(http.MethodGet)
 	api.HandleFunc("/shipping/cep/{cep}", handlers.LookupCep).Methods(http.MethodGet)
-	api.HandleFunc("/shipping/calculate", sh.Calculate).Methods(http.MethodPost)
+	api.HandleFunc("/shipping/calculate", h.shipping.Calculate).Methods(http.MethodPost)
 
 	// Faceted product search (public catalog read).
-	api.HandleFunc("/search", searchH.Search).Methods(http.MethodGet)
+	api.HandleFunc("/search", h.search.Search).Methods(http.MethodGet)
 
 	// Payment webhook is PUBLIC (no JWT): the PSP proves authenticity by signing the raw
 	// body, verified inside the handler. It must stay off the authenticated subrouter.
-	api.HandleFunc("/webhooks/payment", wh.HandlePayment).Methods(http.MethodPost)
+	api.HandleFunc("/webhooks/payment", h.webhook.HandlePayment).Methods(http.MethodPost)
+}
 
+func registerProtectedRoutes(api *mux.Router, h httpHandlers, mw *auth.Middleware) {
 	protected := api.NewRoute().Subrouter()
 	protected.Use(mw.Authenticate)
 
-	protected.HandleFunc("/users/me", uh.GetMe).Methods(http.MethodGet)
-	protected.HandleFunc("/users/me", uh.UpdateMe).Methods(http.MethodPut)
-	protected.HandleFunc("/users/{userId:[0-9a-fA-F-]+}/addresses", uh.ListAddresses).Methods(http.MethodGet)
-	protected.HandleFunc("/users/{userId:[0-9a-fA-F-]+}/addresses", uh.AddAddress).Methods(http.MethodPost)
-	protected.HandleFunc("/users/{userId:[0-9a-fA-F-]+}/addresses/{addressId:[0-9a-fA-F-]+}", uh.UpdateAddress).Methods(http.MethodPut)
-	protected.HandleFunc("/users/{userId:[0-9a-fA-F-]+}/addresses/{addressId:[0-9a-fA-F-]+}", uh.DeleteAddress).Methods(http.MethodDelete)
-	protected.HandleFunc("/users/{userId:[0-9a-fA-F-]+}/addresses/{addressId:[0-9a-fA-F-]+}/default", uh.SetDefaultAddress).Methods(http.MethodPatch)
+	protected.HandleFunc("/users/me", h.user.GetMe).Methods(http.MethodGet)
+	protected.HandleFunc("/users/me", h.user.UpdateMe).Methods(http.MethodPut)
+	protected.HandleFunc("/users/{userId:[0-9a-fA-F-]+}/addresses", h.user.ListAddresses).Methods(http.MethodGet)
+	protected.HandleFunc("/users/{userId:[0-9a-fA-F-]+}/addresses", h.user.AddAddress).Methods(http.MethodPost)
+	protected.HandleFunc("/users/{userId:[0-9a-fA-F-]+}/addresses/{addressId:[0-9a-fA-F-]+}", h.user.UpdateAddress).Methods(http.MethodPut)
+	protected.HandleFunc("/users/{userId:[0-9a-fA-F-]+}/addresses/{addressId:[0-9a-fA-F-]+}", h.user.DeleteAddress).Methods(http.MethodDelete)
+	protected.HandleFunc("/users/{userId:[0-9a-fA-F-]+}/addresses/{addressId:[0-9a-fA-F-]+}/default", h.user.SetDefaultAddress).Methods(http.MethodPatch)
 	// Independent billing vs shipping defaults (handlers/model landed in Round A; routes
 	// were dropped when setupRoutes was rewritten in Round B - re-registered here).
-	protected.HandleFunc("/users/{userId:[0-9a-fA-F-]+}/addresses/{addressId:[0-9a-fA-F-]+}/default/billing", uh.SetDefaultBillingAddress).Methods(http.MethodPatch)
-	protected.HandleFunc("/users/{userId:[0-9a-fA-F-]+}/addresses/{addressId:[0-9a-fA-F-]+}/default/shipping", uh.SetDefaultShippingAddress).Methods(http.MethodPatch)
+	protected.HandleFunc("/users/{userId:[0-9a-fA-F-]+}/addresses/{addressId:[0-9a-fA-F-]+}/default/billing", h.user.SetDefaultBillingAddress).Methods(http.MethodPatch)
+	protected.HandleFunc("/users/{userId:[0-9a-fA-F-]+}/addresses/{addressId:[0-9a-fA-F-]+}/default/shipping", h.user.SetDefaultShippingAddress).Methods(http.MethodPatch)
 
-	protected.HandleFunc("/cart", cartH.GetCart).Methods(http.MethodGet)
-	protected.HandleFunc("/cart/items", cartH.AddItem).Methods(http.MethodPost)
-	protected.HandleFunc("/cart/items/{variantId:[0-9a-fA-F-]+}", cartH.UpdateItem).Methods(http.MethodPut)
-	protected.HandleFunc("/cart/items/{variantId:[0-9a-fA-F-]+}", cartH.DeleteItem).Methods(http.MethodDelete)
-	protected.HandleFunc("/cart/coupon", cartH.AddCoupon).Methods(http.MethodPost)
-	protected.HandleFunc("/cart/coupon/{code}", cartH.RemoveCoupon).Methods(http.MethodDelete)
-	protected.HandleFunc("/cart", cartH.ClearCart).Methods(http.MethodDelete)
+	protected.HandleFunc("/cart", h.cart.GetCart).Methods(http.MethodGet)
+	protected.HandleFunc("/cart/items", h.cart.AddItem).Methods(http.MethodPost)
+	protected.HandleFunc("/cart/items/{variantId:[0-9a-fA-F-]+}", h.cart.UpdateItem).Methods(http.MethodPut)
+	protected.HandleFunc("/cart/items/{variantId:[0-9a-fA-F-]+}", h.cart.DeleteItem).Methods(http.MethodDelete)
+	protected.HandleFunc("/cart/coupon", h.cart.AddCoupon).Methods(http.MethodPost)
+	protected.HandleFunc("/cart/coupon/{code}", h.cart.RemoveCoupon).Methods(http.MethodDelete)
+	protected.HandleFunc("/cart", h.cart.ClearCart).Methods(http.MethodDelete)
 
 	// Authenticated product review submission (one per user per product; user_id from JWT).
-	protected.HandleFunc("/products/{id:[0-9a-fA-F-]+}/reviews", reviewH.CreateReview).Methods(http.MethodPost)
+	protected.HandleFunc("/products/{id:[0-9a-fA-F-]+}/reviews", h.review.CreateReview).Methods(http.MethodPost)
 
+	// Registered only when the AI assistant is active (see buildAIHandler): no key, no route.
+	if h.ai != nil {
+		protected.Handle("/assistant/chat", h.ai).Methods(http.MethodPost)
+	}
+}
+
+func registerOrderRoutes(api *mux.Router, h httpHandlers, mw *auth.Middleware) {
 	// Checkout is authenticated AND rate-limited: order create/pay touch stock and hit the PSP,
 	// so they get a tighter per-IP budget than the rest of the authenticated surface. Idempotency
 	// (Idempotency-Key header on POST /orders) dedupes double-submits on top of the rate limit.
 	ordersLimited := api.NewRoute().Subrouter()
 	ordersLimited.Use(mw.Authenticate)
 	ordersLimited.Use(middleware.RateLimit(30, 30))
-	ordersLimited.HandleFunc("/orders", oh.CreateOrder).Methods(http.MethodPost)
-	ordersLimited.HandleFunc("/orders", oh.ListOrders).Methods(http.MethodGet)
-	ordersLimited.HandleFunc("/orders/{id:[0-9a-fA-F-]+}", oh.GetOrder).Methods(http.MethodGet)
-	ordersLimited.HandleFunc("/orders/{id:[0-9a-fA-F-]+}/cancel", oh.CancelOrder).Methods(http.MethodPatch)
-	ordersLimited.HandleFunc("/orders/{id:[0-9a-fA-F-]+}/pay", oh.Pay).Methods(http.MethodPost)
+	ordersLimited.HandleFunc("/orders", h.order.CreateOrder).Methods(http.MethodPost)
+	ordersLimited.HandleFunc("/orders", h.order.ListOrders).Methods(http.MethodGet)
+	ordersLimited.HandleFunc("/orders/{id:[0-9a-fA-F-]+}", h.order.GetOrder).Methods(http.MethodGet)
+	ordersLimited.HandleFunc("/orders/{id:[0-9a-fA-F-]+}/cancel", h.order.CancelOrder).Methods(http.MethodPatch)
+	ordersLimited.HandleFunc("/orders/{id:[0-9a-fA-F-]+}/pay", h.order.Pay).Methods(http.MethodPost)
+}
 
-	// Registered only when the AI assistant is active (see main): no key → no route.
-	if aiChat != nil {
-		protected.Handle("/assistant/chat", aiChat).Methods(http.MethodPost)
-	}
-
+func registerAdminRoutes(api *mux.Router, h httpHandlers, mw *auth.Middleware) {
 	admin := api.NewRoute().Subrouter()
 	admin.Use(mw.Authenticate)
 	admin.Use(mw.RequireAdmin)
 
-	admin.HandleFunc("/products", ph.CreateProduct).Methods(http.MethodPost)
-	admin.HandleFunc("/products/{id:[0-9a-fA-F-]+}", ph.UpdateProduct).Methods(http.MethodPut)
-	admin.HandleFunc("/products/{id:[0-9a-fA-F-]+}", ph.DeleteProduct).Methods(http.MethodDelete)
-	admin.HandleFunc("/products/{id:[0-9a-fA-F-]+}/stock", ph.UpdateStock).Methods(http.MethodPatch)
-	admin.HandleFunc("/products/{id:[0-9a-fA-F-]+}/variants", ph.CreateVariant).Methods(http.MethodPost)
-	admin.HandleFunc("/products/{id:[0-9a-fA-F-]+}/variants/{variantId:[0-9a-fA-F-]+}/stock", ph.UpdateVariantStock).Methods(http.MethodPatch)
+	admin.HandleFunc("/products", h.product.CreateProduct).Methods(http.MethodPost)
+	admin.HandleFunc("/products/{id:[0-9a-fA-F-]+}", h.product.UpdateProduct).Methods(http.MethodPut)
+	admin.HandleFunc("/products/{id:[0-9a-fA-F-]+}", h.product.DeleteProduct).Methods(http.MethodDelete)
+	admin.HandleFunc("/products/{id:[0-9a-fA-F-]+}/stock", h.product.UpdateStock).Methods(http.MethodPatch)
+	admin.HandleFunc("/products/{id:[0-9a-fA-F-]+}/variants", h.product.CreateVariant).Methods(http.MethodPost)
+	admin.HandleFunc("/products/{id:[0-9a-fA-F-]+}/variants/{variantId:[0-9a-fA-F-]+}/stock", h.product.UpdateVariantStock).Methods(http.MethodPatch)
 
 	// Product media: register by URL, mint a presigned upload URL (501 when storage is off),
 	// and delete. All admin-only.
-	admin.HandleFunc("/products/{id:[0-9a-fA-F-]+}/media", mediaH.AddMedia).Methods(http.MethodPost)
-	admin.HandleFunc("/media/upload-url", mediaH.UploadURL).Methods(http.MethodPost)
-	admin.HandleFunc("/media/{id:[0-9a-fA-F-]+}", mediaH.DeleteMedia).Methods(http.MethodDelete)
+	admin.HandleFunc("/products/{id:[0-9a-fA-F-]+}/media", h.media.AddMedia).Methods(http.MethodPost)
+	admin.HandleFunc("/media/upload-url", h.media.UploadURL).Methods(http.MethodPost)
+	admin.HandleFunc("/media/{id:[0-9a-fA-F-]+}", h.media.DeleteMedia).Methods(http.MethodDelete)
 
-	admin.HandleFunc("/categories", ch.CreateCategory).Methods(http.MethodPost)
-	admin.HandleFunc("/categories/{id:[0-9a-fA-F-]+}", ch.UpdateCategory).Methods(http.MethodPut)
-	admin.HandleFunc("/categories/{id:[0-9a-fA-F-]+}", ch.DeleteCategory).Methods(http.MethodDelete)
+	admin.HandleFunc("/categories", h.category.CreateCategory).Methods(http.MethodPost)
+	admin.HandleFunc("/categories/{id:[0-9a-fA-F-]+}", h.category.UpdateCategory).Methods(http.MethodPut)
+	admin.HandleFunc("/categories/{id:[0-9a-fA-F-]+}", h.category.DeleteCategory).Methods(http.MethodDelete)
 
-	admin.HandleFunc("/orders/{id:[0-9a-fA-F-]+}/tracking", oh.UpdateTracking).Methods(http.MethodPatch)
+	admin.HandleFunc("/orders/{id:[0-9a-fA-F-]+}/tracking", h.order.UpdateTracking).Methods(http.MethodPatch)
 	// Refund (financial reversal + opt-in per-item restock). Admin-only; 501 if the PSP can't refund.
-	admin.HandleFunc("/orders/{id:[0-9a-fA-F-]+}/refund", oh.RefundOrder).Methods(http.MethodPost)
+	admin.HandleFunc("/orders/{id:[0-9a-fA-F-]+}/refund", h.order.RefundOrder).Methods(http.MethodPost)
 
 	// Review moderation (approve/reject) - recomputes the product's rating aggregate.
-	admin.HandleFunc("/reviews/{id:[0-9a-fA-F-]+}/moderate", reviewH.ModerateReview).Methods(http.MethodPatch)
-
-	return r
+	admin.HandleFunc("/reviews/{id:[0-9a-fA-F-]+}/moderate", h.review.ModerateReview).Methods(http.MethodPatch)
 }
 
 // runCleanup runs a periodic expiry pass. WHY generic: both cleanup windows

@@ -11,7 +11,6 @@ import (
 	"bullet-commerce/internal/variants"
 	"context"
 	"errors"
-	"log/slog"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -35,12 +34,6 @@ var (
 	// quantity at order creation. It wraps variants.ErrInsufficientStock so handlers can
 	// match either sentinel.
 	ErrInsufficientStock = variants.ErrInsufficientStock
-	// Refund sentinels - handlers map these to 4xx/5xx.
-	ErrOrderNotRefundable      = errors.New("order cannot be refunded in its current payment status")
-	ErrRefundNotSupported      = errors.New("payment provider does not support refunds")
-	ErrRefundAmountInvalid     = errors.New("refund amount exceeds the refundable balance")
-	ErrRefundItemNotFound      = errors.New("refund item variant is not part of the order")
-	ErrMissingPaymentReference = errors.New("order has no payment reference to refund against")
 )
 
 // Expiry windows for the two cleanup passes. WHY two windows: an order that reached
@@ -79,14 +72,6 @@ type OrderRepository interface {
 	ReleaseIdempotencyKey(ctx context.Context, userID uuid.UUID, key string) error
 }
 
-// RefundItem targets one order line for refund. Restock is opt-in per line: only flagged
-// lines return physical stock (inverse of the Claim done at payment confirmation).
-type RefundItem struct {
-	VariantID uuid.UUID
-	Qty       int
-	Restock   bool
-}
-
 // variantStockRepo is the slice of the variant repository the order aggregate drives for its
 // stock invariants. Declared locally (rather than depending on the whole
 // variants.VariantRepository) so the order layer states exactly the operations it needs.
@@ -98,16 +83,6 @@ type variantStockRepo interface {
 	Claim(ctx context.Context, exec variants.DBExecutor, variantID, sourceID uuid.UUID, qty int) error
 	Restock(ctx context.Context, exec variants.DBExecutor, variantID, sourceID uuid.UUID, qty int) error
 }
-
-// OrderRefundedEvent is emitted once a refund is durably committed. Full reports whether the
-// order's whole balance was refunded (vs a partial refund).
-type OrderRefundedEvent struct {
-	OrderID     uuid.UUID
-	AmountCents int64
-	Full        bool
-}
-
-func (OrderRefundedEvent) Name() string { return "order.refunded" }
 
 type postgresOrderRepository struct {
 	db          DBPool
@@ -134,6 +109,10 @@ func NewPostgresOrderRepository(db *pgxpool.Pool, variantRepo variants.VariantRe
 	return &postgresOrderRepository{db: db, variantRepo: variantRepo, chargeRepo: chargeRepo, bus: bus, voucher: voucher, couponRepo: couponRepo, allocator: allocator}
 }
 
+// CreateOrderFromCart is a short transaction orchestrator: it freezes the pricing (subtotal,
+// coupon discount, total), inserts the order + default delivery, reserves and freezes each
+// line, clears the cart, and commits. The coupon redemption, the main charge, and the
+// order.placed event are best-effort side effects that run only AFTER the commit.
 func (r *postgresOrderRepository) CreateOrderFromCart(ctx context.Context, userID, cartID, shippingAddressID uuid.UUID, cartItems []models.CartItem, shippingCostCents int64, shippingMethod *string) (*models.Order, error) {
 	if len(cartItems) == 0 {
 		return nil, errors.New("cannot create order from empty cart")
@@ -145,25 +124,11 @@ func (r *postgresOrderRepository) CreateOrderFromCart(ctx context.Context, userI
 	}
 	defer tx.Rollback(ctx)
 
-	// Subtotal = sum of line items. Shipping is priced independently of items.
-	var subtotalCents int64
-	for _, item := range cartItems {
-		subtotalCents += item.PriceCents * int64(item.Quantity)
-	}
+	subtotalCents := sumLineItems(cartItems)
 
-	// Freeze the cart's coupon discount at checkout: read the codes off the cart, let the
-	// voucher port price them against the subtotal, and carry the reductions through so the
-	// order total and the applied_discounts rows both reflect the frozen amount.
-	var discounts []models.AppliedDiscount
-	if r.voucher != nil {
-		var couponCodes []string
-		if err := tx.QueryRow(ctx, `SELECT applied_coupon_codes FROM carts WHERE id = $1`, cartID).Scan(&couponCodes); err != nil {
-			return nil, err
-		}
-		discounts, err = r.voucher.Apply(ctx, subtotalCents, couponCodes)
-		if err != nil {
-			return nil, err
-		}
+	discounts, err := r.freezeCartDiscounts(ctx, tx, cartID, subtotalCents)
+	if err != nil {
+		return nil, err
 	}
 	var discountCents int64
 	for _, d := range discounts {
@@ -176,77 +141,22 @@ func (r *postgresOrderRepository) CreateOrderFromCart(ctx context.Context, userI
 		totalCents = 0
 	}
 
-	order := &models.Order{
-		UserID:            userID,
-		ShippingAddressID: shippingAddressID,
-		TotalCents:        totalCents,
-		ShippingCostCents: shippingCostCents,
-		ShippingMethod:    shippingMethod,
-	}
-
-	err = tx.QueryRow(ctx, `
-		INSERT INTO orders (user_id, shipping_address_id, status, payment_status, total_cents, shipping_cost_cents, shipping_method)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
-		RETURNING id, status, payment_status, currency, created_at, updated_at
-	`, userID, shippingAddressID, models.StatusPending, models.PaymentUnpaid, totalCents, shippingCostCents, shippingMethod,
-	).Scan(&order.ID, &order.Status, &order.PaymentStatus, &order.Currency, &order.CreatedAt, &order.UpdatedAt)
+	order, err := r.insertOrder(ctx, tx, userID, shippingAddressID, totalCents, shippingCostCents, shippingMethod)
 	if err != nil {
 		return nil, err
 	}
 
-	// Mirror the cart's default delivery onto the order (V1: the single default shipment).
-	// Freight moves onto the delivery, but the order total above is unchanged - the order
-	// still owns shipping_cost_cents, the delivery just records which shipment incurred it.
-	var deliveryID uuid.UUID
-	if err := tx.QueryRow(ctx, `
-		INSERT INTO deliveries (order_id, code, location_type, shipping_cost_cents, method)
-		VALUES ($1, $2, 'address', $3, $4)
-		RETURNING id
-	`, order.ID, models.DefaultDeliveryCode, shippingCostCents, shippingMethod).Scan(&deliveryID); err != nil {
-		return nil, err
-	}
-
-	// Ask the allocator which source each line ships from before reserving. V1 returns the
-	// default source for every line, so this collapses to the pre-sourcing behavior; a future
-	// multi-source allocator changes only the chosen source, not the reserve/insert path.
-	sourceByVariant, err := r.allocateSources(ctx, cartItems)
+	deliveryID, err := r.insertDefaultDelivery(ctx, tx, order.ID, shippingCostCents, shippingMethod)
 	if err != nil {
 		return nil, err
 	}
 
-	for _, item := range cartItems {
-		sourceID := sourceByVariant[item.VariantID]
-		// Reserve holds the stock for this order at the allocated source without decrementing
-		// physical stock; the atomic guard inside Reserve makes concurrent checkouts safe. On
-		// shortage we abort the whole order (tx rollback) so nothing is half-reserved.
-		if err := r.variantRepo.Reserve(ctx, tx, item.VariantID, sourceID, item.Quantity); err != nil {
-			return nil, err
-		}
-		// INSERT ... SELECT freezes the product name and variant SKU from the catalog at
-		// purchase time in a single atomic statement (no extra round trip), so a later
-		// rename/soft-delete never rewrites this line. $3 (variant id) doubles as the join key.
-		// source_id ($7) records where it was reserved so Release/Claim free the same pair.
-		if _, err := tx.Exec(ctx,
-			`INSERT INTO order_items (order_id, product_id, variant_id, delivery_id, source_id, quantity, price_cents, product_name, variant_sku)
-			 SELECT $1, $2, $3, $6, $7, $4, $5, p.name, v.sku
-			 FROM product_variants v JOIN products p ON p.id = v.product_id
-			 WHERE v.id = $3`,
-			order.ID, item.ProductID, item.VariantID, item.Quantity, item.PriceCents, deliveryID, sourceID,
-		); err != nil {
-			return nil, err
-		}
+	if err := r.reserveCartLines(ctx, tx, order.ID, deliveryID, cartItems); err != nil {
+		return nil, err
 	}
 
-	// Freeze each computed reduction onto the order in the SAME tx as the order/lines, so
-	// the historical discount can never diverge from the order total.
-	for _, d := range discounts {
-		if _, err := tx.Exec(ctx,
-			`INSERT INTO applied_discounts (order_id, level, type, applied_cents, coupon_code)
-			 VALUES ($1, $2, $3, $4, $5)`,
-			order.ID, d.Level, d.Type, d.AppliedCents, d.CouponCode,
-		); err != nil {
-			return nil, err
-		}
+	if err := r.freezeAppliedDiscounts(ctx, tx, order.ID, discounts); err != nil {
+		return nil, err
 	}
 
 	if _, err := tx.Exec(ctx, `DELETE FROM cart_items WHERE cart_id = $1`, cartID); err != nil {
@@ -257,43 +167,8 @@ func (r *postgresOrderRepository) CreateOrderFromCart(ctx context.Context, userI
 		return nil, err
 	}
 
-	// Redeem the coupons post-commit (non-fatal, like the main charge): a redemption-count
-	// bump must not undo a placed order, so a failure here is logged, not returned. Each
-	// distinct coupon is counted once per order.
-	if r.couponRepo != nil {
-		seen := make(map[string]bool, len(discounts))
-		for _, d := range discounts {
-			if d.CouponCode == "" || seen[d.CouponCode] {
-				continue
-			}
-			seen[d.CouponCode] = true
-			coupon, err := r.couponRepo.FindByCode(ctx, d.CouponCode)
-			if err != nil {
-				slog.Error("failed to load coupon for redemption", "code", d.CouponCode, "error", err)
-				continue
-			}
-			if err := r.couponRepo.IncrementUse(ctx, coupon.ID); err != nil {
-				slog.Error("failed to increment coupon usage", "code", d.CouponCode, "error", err)
-			}
-		}
-	}
-
-	// Post-commit side effects. WHY here (not in the tx): ChargeRepository.Create runs on
-	// the pool (no tx handle) and the event bus contract is "publish only durable facts",
-	// so both must run AFTER the order is committed. A charge-insert failure must not undo
-	// a placed order, so it is logged, not returned.
-	if r.chargeRepo != nil {
-		charge := &models.Charge{
-			OrderID:     order.ID,
-			Type:        models.ChargeMain,
-			AmountCents: totalCents,
-			Status:      "pending",
-			Method:      "",
-		}
-		if err := r.chargeRepo.Create(ctx, charge); err != nil {
-			slog.Error("failed to create main charge for order", "order_id", order.ID, "error", err)
-		}
-	}
+	r.redeemCoupons(ctx, discounts)
+	r.createMainCharge(ctx, order.ID, totalCents)
 	if r.bus != nil {
 		r.bus.Publish(ctx, events.OrderPlacedEvent{OrderID: order.ID})
 	}
@@ -613,25 +488,6 @@ func (r *postgresOrderRepository) expireOrders(ctx context.Context, paymentStatu
 	return int64(len(ids)), nil
 }
 
-// allocateSources runs the allocator over the cart's lines and returns the chosen source per
-// variant. WHY keyed by variant: cart_items are unique per variant within a cart, so one source
-// per variant is a faithful mapping for V1's single-source allocator.
-func (r *postgresOrderRepository) allocateSources(ctx context.Context, cartItems []models.CartItem) (map[uuid.UUID]uuid.UUID, error) {
-	allocItems := make([]sourcing.AllocItem, len(cartItems))
-	for i, item := range cartItems {
-		allocItems[i] = sourcing.AllocItem{VariantID: item.VariantID, Qty: item.Quantity}
-	}
-	allocations, err := r.allocator.Allocate(ctx, allocItems)
-	if err != nil {
-		return nil, err
-	}
-	sourceByVariant := make(map[uuid.UUID]uuid.UUID, len(allocations))
-	for _, a := range allocations {
-		sourceByVariant[a.VariantID] = a.SourceID
-	}
-	return sourceByVariant, nil
-}
-
 type orderItemStock struct {
 	variantID uuid.UUID
 	sourceID  uuid.UUID
@@ -668,122 +524,6 @@ func (r *postgresOrderRepository) releaseOrderItems(ctx context.Context, exec va
 		if err := r.variantRepo.Release(ctx, exec, it.variantID, it.sourceID, it.quantity); err != nil {
 			return err
 		}
-	}
-	return nil
-}
-
-// RefundOrder refunds a Paid order. In ONE transaction it (1) calls the financial Refunder
-// on the PSP, (2) flips payment_status to refunded/partially_refunded and stamps
-// refunded_at + refund_amount_cents, (3) marks the main charge refunded, and (4) for each
-// item flagged restock returns physical stock at the (variant, source) it was Claimed from -
-// the inverse of ConfirmOrderPayment's Claim. WHY one tx: money-state and stock-state must
-// never diverge, exactly as ConfirmOrderPayment couples the claim and the charge flip.
-//
-// Guard: only a Paid order can be refunded (a single refund op per order; a partial refund
-// leaves the order 'partially_refunded' and is not refundable again by this method). The
-// row is locked FOR UPDATE so a concurrent refund/confirm cannot race the guard.
-func (r *postgresOrderRepository) RefundOrder(ctx context.Context, refunder payment.Refunder, orderID uuid.UUID, items []RefundItem, amountCents int64) error {
-	if refunder == nil {
-		return ErrRefundNotSupported
-	}
-	if amountCents < 0 {
-		return ErrRefundAmountInvalid
-	}
-
-	tx, err := r.db.Begin(ctx)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback(ctx)
-
-	var paymentStatus models.PaymentStatus
-	var paymentRef *string
-	var totalCents, alreadyRefunded int64
-	err = tx.QueryRow(ctx, `
-		SELECT payment_status, payment_reference, total_cents, refund_amount_cents
-		FROM orders
-		WHERE id = $1 AND deleted_at IS NULL
-		FOR UPDATE
-	`, orderID).Scan(&paymentStatus, &paymentRef, &totalCents, &alreadyRefunded)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return ErrOrderNotFound
-		}
-		return err
-	}
-
-	// Only a settled (Paid) order can be refunded.
-	if paymentStatus != models.PaymentPaid {
-		return ErrOrderNotRefundable
-	}
-	if paymentRef == nil || *paymentRef == "" {
-		return ErrMissingPaymentReference
-	}
-
-	// Resolve the amount: 0 means a full refund of the remaining balance.
-	refundable := totalCents - alreadyRefunded
-	if amountCents == 0 {
-		amountCents = refundable
-	}
-	if amountCents <= 0 || amountCents > refundable {
-		return ErrRefundAmountInvalid
-	}
-	full := amountCents >= refundable
-
-	// Call the PSP refund first: if the money movement fails, the tx rolls back and neither
-	// the status flip nor the restock is applied.
-	if _, err := refunder.Refund(ctx, *paymentRef, payment.Money(amountCents)); err != nil {
-		return err
-	}
-
-	newStatus := models.PaymentPartiallyRefunded
-	if full {
-		newStatus = models.PaymentRefunded
-	}
-	if _, err := tx.Exec(ctx, `
-		UPDATE orders
-		SET payment_status = $1, refunded_at = NOW(), refund_amount_cents = refund_amount_cents + $2, updated_at = NOW()
-		WHERE id = $3
-	`, newStatus, amountCents, orderID); err != nil {
-		return err
-	}
-
-	// Restock each flagged line at the exact source it was claimed from. order_items.source_id
-	// (added in 000020) records that pair, so the return targets the same (variant, source).
-	for _, it := range items {
-		if !it.Restock {
-			continue
-		}
-		var sourceID uuid.UUID
-		err := tx.QueryRow(ctx, `
-			SELECT source_id FROM order_items WHERE order_id = $1 AND variant_id = $2
-		`, orderID, it.VariantID).Scan(&sourceID)
-		if err != nil {
-			if errors.Is(err, pgx.ErrNoRows) {
-				return ErrRefundItemNotFound
-			}
-			return err
-		}
-		if err := r.variantRepo.Restock(ctx, tx, it.VariantID, sourceID, it.Qty); err != nil {
-			return err
-		}
-	}
-
-	// Flip the main charge to refunded in the same tx (mirrors ConfirmOrderPayment). A missing
-	// main charge is not fatal - older orders may have none.
-	if _, err := tx.Exec(ctx, `
-		UPDATE payment_charges SET status = 'refunded'
-		WHERE order_id = $1 AND type = 'main'
-	`, orderID); err != nil {
-		return err
-	}
-
-	if err := tx.Commit(ctx); err != nil {
-		return err
-	}
-
-	if r.bus != nil {
-		r.bus.Publish(ctx, OrderRefundedEvent{OrderID: orderID, AmountCents: amountCents, Full: full})
 	}
 	return nil
 }

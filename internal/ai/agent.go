@@ -106,37 +106,10 @@ func (a *Agent) Run(ctx context.Context, userInput string, emit func(AgentEvent)
 			Tools:    a.tools.Schemas(),
 		}
 
-		stream, err := a.provider.Stream(ctx, req)
+		text, toolCalls, stopReason, err := a.streamTurn(ctx, req, emit)
 		if err != nil {
-			emit(AgentEvent{Kind: AgentError, Err: err})
 			return err
 		}
-
-		var (
-			textBuf    strings.Builder
-			toolCalls  []ToolCall
-			stopReason string
-		)
-		for stream.Next() {
-			ev := stream.Event()
-			switch ev.Kind {
-			case EventText:
-				textBuf.WriteString(ev.Text)
-				emit(AgentEvent{Kind: AgentText, Text: ev.Text})
-			case EventToolUse:
-				if ev.ToolCall != nil {
-					toolCalls = append(toolCalls, *ev.ToolCall)
-				}
-			case EventEnd:
-				stopReason = ev.StopReason
-			}
-		}
-		if err := stream.Err(); err != nil {
-			_ = stream.Close()
-			emit(AgentEvent{Kind: AgentError, Err: err})
-			return err
-		}
-		_ = stream.Close()
 
 		// No tool calls -> the model gave its final answer for this turn.
 		if stopReason != "tool_use" || len(toolCalls) == 0 {
@@ -144,39 +117,95 @@ func (a *Agent) Run(ctx context.Context, userInput string, emit func(AgentEvent)
 			return nil
 		}
 
-		// Reattach the assistant turn WITH its tool_use blocks - the API requires
-		// the full assistant content to be replayed so it can pair results.
-		assistantBlocks := make([]Block, 0, len(toolCalls)+1)
-		if textBuf.Len() > 0 {
-			assistantBlocks = append(assistantBlocks, Block{Kind: BlockText, Text: textBuf.String()})
-		}
-		for _, tc := range toolCalls {
-			assistantBlocks = append(assistantBlocks, Block{
-				Kind:      BlockToolUse,
-				ToolUseID: tc.ID,
-				ToolName:  tc.Name,
-				ToolInput: tc.Input,
-			})
-		}
-		messages = append(messages, Message{Role: RoleAssistant, Blocks: assistantBlocks})
-
-		// Execute each tool and feed all results back in a single user turn.
-		resultBlocks := make([]Block, 0, len(toolCalls))
-		for _, tc := range toolCalls {
-			emit(AgentEvent{Kind: AgentToolCall, Tool: tc.Name})
-			res := a.tools.Execute(ctx, tc.Name, tc.Input)
-			resultBlocks = append(resultBlocks, Block{
-				Kind:       BlockToolResult,
-				ToolUseID:  tc.ID,
-				ResultText: res.Content,
-				IsError:    res.IsError,
-			})
-		}
-		messages = append(messages, Message{Role: RoleUser, Blocks: resultBlocks})
+		// Reattach the assistant turn WITH its tool_use blocks (the API requires the
+		// full assistant content replayed to pair results), then execute each tool
+		// and feed all results back in a single user turn. Order matters:
+		// assistantTurn is built before executeTools emits its tool_call hints.
+		messages = append(messages,
+			assistantTurn(text, toolCalls),
+			a.executeTools(ctx, toolCalls, emit),
+		)
 	}
 
 	// Hit the iteration ceiling without a final answer: honest fallback.
 	emit(AgentEvent{Kind: AgentText, Text: fallbackMessage})
 	emit(AgentEvent{Kind: AgentDone})
 	return nil
+}
+
+// streamTurn runs one provider request and drains its stream, emitting text
+// deltas as they arrive. It returns the accumulated assistant text, any
+// requested tool calls and the stop reason. WHY it owns the AgentError emission:
+// both failure paths (open error, mid-stream error) must emit the same terminal
+// error event before Run returns, so keeping them here guarantees one shape.
+func (a *Agent) streamTurn(ctx context.Context, req LLMRequest, emit func(AgentEvent)) (string, []ToolCall, string, error) {
+	stream, err := a.provider.Stream(ctx, req)
+	if err != nil {
+		emit(AgentEvent{Kind: AgentError, Err: err})
+		return "", nil, "", err
+	}
+
+	var (
+		textBuf    strings.Builder
+		toolCalls  []ToolCall
+		stopReason string
+	)
+	for stream.Next() {
+		ev := stream.Event()
+		switch ev.Kind {
+		case EventText:
+			textBuf.WriteString(ev.Text)
+			emit(AgentEvent{Kind: AgentText, Text: ev.Text})
+		case EventToolUse:
+			if ev.ToolCall != nil {
+				toolCalls = append(toolCalls, *ev.ToolCall)
+			}
+		case EventEnd:
+			stopReason = ev.StopReason
+		}
+	}
+	if err := stream.Err(); err != nil {
+		_ = stream.Close()
+		emit(AgentEvent{Kind: AgentError, Err: err})
+		return "", nil, "", err
+	}
+	_ = stream.Close()
+
+	return textBuf.String(), toolCalls, stopReason, nil
+}
+
+// assistantTurn rebuilds the assistant message the provider just produced,
+// pairing any streamed text with its tool_use blocks so the next request can
+// replay the full turn.
+func assistantTurn(text string, toolCalls []ToolCall) Message {
+	blocks := make([]Block, 0, len(toolCalls)+1)
+	if len(text) > 0 {
+		blocks = append(blocks, Block{Kind: BlockText, Text: text})
+	}
+	for _, tc := range toolCalls {
+		blocks = append(blocks, Block{
+			Kind:      BlockToolUse,
+			ToolUseID: tc.ID,
+			ToolName:  tc.Name,
+			ToolInput: tc.Input,
+		})
+	}
+	return Message{Role: RoleAssistant, Blocks: blocks}
+}
+
+// executeTools runs each requested tool, emitting a tool_call hint before each,
+// and collects the results into the single user turn fed back to the model.
+func (a *Agent) executeTools(ctx context.Context, toolCalls []ToolCall, emit func(AgentEvent)) Message {
+	resultBlocks := make([]Block, 0, len(toolCalls))
+	for _, tc := range toolCalls {
+		emit(AgentEvent{Kind: AgentToolCall, Tool: tc.Name})
+		res := a.tools.Execute(ctx, tc.Name, tc.Input)
+		resultBlocks = append(resultBlocks, Block{
+			Kind:       BlockToolResult,
+			ToolUseID:  tc.ID,
+			ResultText: res.Content,
+			IsError:    res.IsError,
+		})
+	}
+	return Message{Role: RoleUser, Blocks: resultBlocks}
 }
