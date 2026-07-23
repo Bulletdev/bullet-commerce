@@ -10,7 +10,7 @@ import (
 // WHY prefix range: Brazilian CEPs are geographically ordered by their leading
 // digits, so a [from,to] range over the normalized 8-digit number selects a
 // region without a full CEP database. Prefixes may be shorter than 8 digits;
-// they are padded (From with '0', To with '9') to bound the range — e.g.
+// they are padded (From with '0', To with '9') to bound the range - e.g.
 // From "01" To "19" covers 01000000..19999999.
 type Rule struct {
 	CEPPrefixFrom string

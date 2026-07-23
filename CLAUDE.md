@@ -4,13 +4,13 @@ Guidance for Claude Code (claude.ai/code) when working in this repository.
 
 ## Overview
 
-bullet-commerce is a production-oriented **e-commerce backend in Go** — the BFF for
+bullet-commerce is a production-oriented **e-commerce backend in Go** - the BFF for
 the clubedojava stack. It exposes a RESTful API for catalog, cart, orders, stock,
 PIX/card payments, shipping and users, over PostgreSQL. Domain-Driven Design over
 a Clean Architecture spine: the domain (aggregates, invariants, ports) knows
 nothing about HTTP, the pgx driver, or any specific payment/shipping provider.
 
-> The Go module is `bullet-commerce` — imports start with
+> The Go module is `bullet-commerce` - imports start with
 > `bullet-commerce/internal/...` even though the repo/binary is bullet-commerce.
 
 ## Development commands
@@ -54,7 +54,7 @@ internal/
   config/                    # typed 12-factor ENV loader (getEnv/getInt/getBool/getDuration)
   database/                  # pgxpool + migrations/
   middleware/                # RequestID · CORS · BodyLimit(1MiB)
-  handlers/                  # HTTP adapters, one per domain — NO business rules
+  handlers/                  # HTTP adapters, one per domain - NO business rules
   webutils/                  # WriteJSON · ErrorJSON · ReadJSON
   products/ variants/ cart/ orders/ categories/ users/ addresses/   # aggregate repos: repository.go + repository_mock.go + repository_test.go
   payment/                   # payment.Provider port + Registry
@@ -68,17 +68,17 @@ Adding a domain: `internal/{domain}/repository.go` (interface + postgres impl +
 
 ## Domains
 
-- **products** — Product aggregate root (catalog, search, featured, soft delete).
-- **variants** — ProductVariant entity; **owns the stock invariant**
+- **products** - Product aggregate root (catalog, search, featured, soft delete).
+- **variants** - ProductVariant entity; **owns the stock invariant**
   (Reserve/Claim/Release, atomic per variant). `available = stock - stock_reserved`.
-- **categories** — product categorization.
-- **cart** — Cart aggregate; **line identity = variant** (same product in two
+- **categories** - product categorization.
+- **cart** - Cart aggregate; **line identity = variant** (same product in two
   sizes = two lines). Optional coupon.
-- **orders** — Order aggregate; two state machines (`status` + `payment_status`);
+- **orders** - Order aggregate; two state machines (`status` + `payment_status`);
   coordinates variant stock reservation inside its own `pgx.Tx`. Saga planned
   (WI-P5). Background cleanup tickers (pending_payment 30min · unpaid 15min).
-- **users** — RBAC role `user | admin`; CPF on profile, required at checkout.
-- **addresses** — user addresses; default shipping address.
+- **users** - RBAC role `user | admin`; CPF on profile, required at checkout.
+- **addresses** - user addresses; default shipping address.
 
 ## Conventions
 
@@ -86,16 +86,16 @@ Adding a domain: `internal/{domain}/repository.go` (interface + postgres impl +
   `models/money.go`, `DefaultCurrency = "BRL"`. Formatting to decimal is a
   frontend concern.
 - **DDD.** One aggregate → one repository. Cross-aggregate work (order reserving
-  variant stock) goes through the variant repository **inside the order's tx** —
+  variant stock) goes through the variant repository **inside the order's tx** -
   never by reaching into another aggregate's tables. Invariants live with the
   aggregate that owns them (stock is enforced atomically in SQL, not in a handler).
 - **Reserve / Claim / Release.** Reserve (hold at checkout) · Claim (convert to
-  sale at payment) · Release (free on cancel/expire) — same words in code, SQL,
+  sale at payment) · Release (free on cancel/expire) - same words in code, SQL,
   docs. The atomic `UPDATE … WHERE (stock - stock_reserved) >= qty` guard makes
   concurrent checkouts safe; `RowsAffected() == 0` maps to a domain sentinel.
 - **Ports & adapters.** `payment.Provider` and `shipping.Provider` are ports;
   `propay` and `TableProvider` are adapters; `Registry` selects by config. **Port
-  only where ≥2 implementations are plausible** — otherwise a struct.
+  only where ≥2 implementations are plausible** - otherwise a struct.
 - **12-Factor.** All config via ENV (`internal/config`). Secrets never in code.
   `config.Load()` exits if `DATABASE_URL` or `JWT_SECRET` is missing.
 - **Comments explain WHY, not WHAT.** Name things clearly; comment only the
@@ -104,7 +104,7 @@ Adding a domain: `internal/{domain}/repository.go` (interface + postgres impl +
 - **HTTP:** errors to client via `webutils.ErrorJSON` only; success via
   `webutils.WriteJSON`. User identity from `auth.UserIDContextKey`; admin via
   `RequireAdmin`. UUID routes use `{id:[0-9a-fA-F-]+}`.
-- **Migrations** (golang-migrate, sequential `NNNNNN_*.up.sql`/`.down.sql`) —
+- **Migrations** (golang-migrate, sequential `NNNNNN_*.up.sql`/`.down.sql`) -
   last used `000011`, next free `000012`; always a matching up/down pair.
 - **No emojis** in code, logs, or comments.
 
@@ -132,18 +132,18 @@ after signature verification). PSPs: `propay` (PIX, implemented), `efi`/`itau_pi
 
 The project follows a **progressive-capability** architecture: one codebase that
 scales from a small store to multi-warehouse/B2B/multi-tenant by **config, not
-rewrite** — "design the ceiling, implement the floor by default, raise the floor
+rewrite** - "design the ceiling, implement the floor by default, raise the floor
 per profile" (profiles: Starter → Growth → Scale → Enterprise). Structural seams
 (Money VO, PaymentSelection/Charge, event bus, Cart→Delivery, sourcing/source_id)
 enter early as additive schema + ports with an implicit **default** so the simple
 path never feels the complexity (like the default variant).
 
-- **`DEVDOCS/PRD-flamingo-gap-analysis.md`** — the PRD: profiles, capabilities,
+- **`DEVDOCS/PRD-flamingo-gap-analysis.md`** - the PRD: profiles, capabilities,
   ports, "default X" pattern, decisions, risks.
-- **`DEVDOCS/IMPLEMENTATION-PLAN.md`** — work items (WI-F/P/S/G/C/E) with files,
+- **`DEVDOCS/IMPLEMENTATION-PLAN.md`** - work items (WI-F/P/S/G/C/E) with files,
   migrations, interface sketches, and Given/When/Then acceptance criteria that
   become tests. Definition of Done: build/vet/test green, gofmt clean, ACs as
   tests, WHY-only comments, ENV config, up/down migration.
-- **`docs/payment-provider.md`** — the payment port contract and per-PSP mapping.
-- **`readme.md`** — full endpoint reference, env vars, security, deployment.
+- **`docs/payment-provider.md`** - the payment port contract and per-PSP mapping.
+- **`readme.md`** - full endpoint reference, env vars, security, deployment.
 ```

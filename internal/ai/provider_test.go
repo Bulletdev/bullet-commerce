@@ -12,7 +12,7 @@ type scriptedTurn struct {
 	err       error      // if set, Stream surfaces it via the stream's Err
 }
 
-// fakeProvider is an in-memory LLMProvider for tests — no network, no SDK types.
+// fakeProvider is an in-memory LLMProvider for tests - no network, no SDK types.
 // It replays a script of turns; each Stream call consumes the next turn. It also
 // records the requests it received so tests can assert what the agent sent.
 type fakeProvider struct {

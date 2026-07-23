@@ -14,7 +14,7 @@ import (
 )
 
 // The default allocator routes every item's full quantity to the default source, preserving
-// order (one Allocation per AllocItem) — the transparent V1 behavior.
+// order (one Allocation per AllocItem) - the transparent V1 behavior.
 func TestSingleSourceAllocator_AllocatesFromDefault(t *testing.T) {
 	defaultSource := uuid.New()
 	alloc := NewSingleSourceAllocator(defaultSource)

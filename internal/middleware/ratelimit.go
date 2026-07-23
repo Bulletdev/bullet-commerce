@@ -6,14 +6,14 @@ package middleware
 //	RateLimit(requestsPerMinute int, burst int) mux.MiddlewareFunc
 //
 // The same constructor drives both a strict auth limiter and a looser checkout
-// limiter — the caller picks the numbers. Suggested wiring (done by the
+// limiter - the caller picks the numbers. Suggested wiring (done by the
 // integrator in cmd/main.go, NOT here):
 //
 //	auth subrouter (login/register): RateLimit(10, 10)   // ~10 req/min, brute-force brake
 //	orders subrouter (checkout/pay): RateLimit(30, 30)   // ~30 req/min, burst-friendly
 //
 // Client IP: derived from r.RemoteAddr only. X-Forwarded-For is deliberately
-// NOT trusted by default — honoring it without a vetted trusted-proxy hop lets a
+// NOT trusted by default - honoring it without a vetted trusted-proxy hop lets a
 // client forge the key and evade the limit. Behind a trusted L7 proxy, unwrap
 // XFF's first hop at the edge (or extend this file with an explicit trusted-proxy
 // allowlist) before relying on it.
@@ -145,7 +145,7 @@ func (rl *rateLimiter) sweepLocked(now time.Time) {
 func clientIP(r *http.Request) string {
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
-		// RemoteAddr had no port (or was already a bare host) — use it verbatim.
+		// RemoteAddr had no port (or was already a bare host) - use it verbatim.
 		return r.RemoteAddr
 	}
 	return host

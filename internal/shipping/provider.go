@@ -3,7 +3,7 @@
 // WHY genericity: quoting is behind the Provider interface so a fork can swap
 // the implementation (fixed region table -> Correios/MelhorEnvio) without
 // touching callers (handlers/services). Callers depend only on QuoteRequest,
-// Quote and Provider — never on a concrete implementation.
+// Quote and Provider - never on a concrete implementation.
 //
 // This is a pure domain service: no HTTP, no DB, no framework. Money is always
 // int64 in cents. Errors are domain errors that do not leak implementation

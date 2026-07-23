@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS deliveries (
 );
 
 -- Partial UNIQUE indexes: a delivery is looked up by its owning cart or order (never both),
--- and (parent, code) is unique so the default delivery stays singular per cart/order — this
+-- and (parent, code) is unique so the default delivery stays singular per cart/order - this
 -- is what makes ensureDefaultDelivery's ON CONFLICT DO NOTHING race-safe. Two deliveries on
 -- the same cart/order are allowed as long as they carry distinct codes (multi-delivery).
 CREATE UNIQUE INDEX IF NOT EXISTS idx_deliveries_cart_code ON deliveries(cart_id, code) WHERE cart_id IS NOT NULL;

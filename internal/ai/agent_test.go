@@ -54,7 +54,7 @@ func joinText(events []AgentEvent) string {
 }
 
 // The loop calls the right tool, feeds the result back, and produces a grounded
-// final answer — without inventing anything.
+// final answer - without inventing anything.
 func TestAgentToolLoopGrounded(t *testing.T) {
 	provider := &fakeProvider{turns: []scriptedTurn{
 		{toolCalls: []ToolCall{{ID: "t1", Name: "check_variant_stock", Input: rawInput(map[string]any{"variant_id": "v-1"})}}},

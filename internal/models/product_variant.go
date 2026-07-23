@@ -45,7 +45,7 @@ type ProductVariant struct {
 	Stock         int `json:"stock" db:"stock"`
 	StockReserved int `json:"stock_reserved" db:"stock_reserved"`
 	// Available is DERIVED, not a stored column: summed from variant_stock (stock - stock_reserved
-	// across every source) at read time by FindByID/FindByProductID — the same formula as
+	// across every source) at read time by FindByID/FindByProductID - the same formula as
 	// AvailableForVariant. It is zero on the write path (Create), where no read has populated it.
 	Available int        `json:"stock_available" db:"-"`
 	DeletedAt *time.Time `json:"deleted_at,omitempty" db:"deleted_at"`

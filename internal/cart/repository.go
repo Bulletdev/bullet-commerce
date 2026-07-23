@@ -82,7 +82,7 @@ func (r *postgresCartRepository) ensureDefaultDelivery(ctx context.Context, cart
 }
 
 func (r *postgresCartRepository) AddCouponCode(ctx context.Context, cartID uuid.UUID, code string) (*models.Cart, error) {
-	// Append only if absent so the same code attached twice stays a single entry — the
+	// Append only if absent so the same code attached twice stays a single entry - the
 	// CASE keeps the write idempotent without a read-modify-write round trip.
 	query := `
 		UPDATE carts
@@ -150,7 +150,7 @@ func (r *postgresCartRepository) GetCartItems(ctx context.Context, cartID uuid.U
 func (r *postgresCartRepository) AddItem(ctx context.Context, cartID, productID, variantID uuid.UUID, quantity int, priceCents int64) (*models.CartItem, error) {
 	// Upsert keyed on (cart_id, variant_id): adding the same variant again bumps quantity.
 	// The subquery attaches the line to the cart's default delivery when the client does not
-	// choose one — the transparent single-shipment path (GetOrCreateCartByUserID guarantees
+	// choose one - the transparent single-shipment path (GetOrCreateCartByUserID guarantees
 	// the default delivery exists before any AddItem runs).
 	query := `
 		INSERT INTO cart_items (cart_id, product_id, variant_id, delivery_id, quantity, price_cents)

@@ -12,7 +12,7 @@ import (
 
 // ChatHandler serves POST /api/assistant/chat as an SSE stream. It is GATED: if
 // the feature is not Active (flag off or no key) it 404s, so the endpoint is
-// invisible when disabled. This handler is NOT self-registering — the route is
+// invisible when disabled. This handler is NOT self-registering - the route is
 // wired in cmd/main.go by the composition layer.
 type ChatHandler struct {
 	cfg   Config
@@ -39,7 +39,7 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Identity comes from the validated JWT (injected by auth middleware), never
-	// from the request body — the assistant's user scoping depends on this.
+	// from the request body - the assistant's user scoping depends on this.
 	userID, ok := r.Context().Value(auth.UserIDContextKey).(uuid.UUID)
 	if !ok {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)

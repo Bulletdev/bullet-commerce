@@ -11,7 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// DBPool is the subset of pgxpool.Pool used by this package — satisfied by
+// DBPool is the subset of pgxpool.Pool used by this package - satisfied by
 // both *pgxpool.Pool in production and pgxmock.PgxPoolIface in tests.
 type DBPool interface {
 	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row

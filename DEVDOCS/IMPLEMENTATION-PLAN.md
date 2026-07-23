@@ -1,4 +1,4 @@
-# Plano de Implementação — bullet-commerce (Capacidades Progressivas)
+# Plano de Implementação - bullet-commerce (Capacidades Progressivas)
 
 **Companion de** `DEVDOCS/PRD-flamingo-gap-analysis.md` (v2). Traduz o roadmap em **work items (WI)** concretos: objetivo, arquivos, migração, esboço de interface, critérios de aceite (Given/When/Then), testes e dependências.
 
@@ -6,7 +6,7 @@
 - **WI-Fx** = fundação · **WI-Px** = pagamento · **WI-Sx** = costuras estruturais · **WI-Gx/Cx/Ex** = Growth/Scale/Enterprise.
 - **Definition of Done (todos os WI):** `go build/vet/test ./...` verde · `gofmt` limpo · critérios de aceite viram teste (pgxmock/httptest) · comentários só WHY · config nova por ENV (12-Factor) · migração com `.up`/`.down`.
 - **Padrão de porta:** interface + adapter **default** (piso) + flag/config. Porta só onde há ≥2 implementações plausíveis; senão, struct.
-- **Padrão "default X":** schema aditivo com um default implícito (como a variante default) — o caminho simples não sente a estrutura rica.
+- **Padrão "default X":** schema aditivo com um default implícito (como a variante default) - o caminho simples não sente a estrutura rica.
 
 ## Grafo de dependências (ordem recomendada)
 ```
@@ -22,10 +22,10 @@ Sequência sugerida: **F1, F2** (paralelos) → **P1, P2** → **S2, S1** → **
 
 ---
 
-# FASE 2 — Fundação + Pagamento robusto (detalhado)
+# FASE 2 - Fundação + Pagamento robusto (detalhado)
 
 ## WI-F1 · Money value object
-**Objetivo:** dinheiro robusto sem `big.Float` — `int64` centavos + precisão por moeda + split sem perder centavo.
+**Objetivo:** dinheiro robusto sem `big.Float` - `int64` centavos + precisão por moeda + split sem perder centavo.
 **Arquivos:** `internal/money/{money.go,currency.go,money_test.go}`
 **Interface:**
 ```go
@@ -86,7 +86,7 @@ propay: `StartFlow` devolve `Action=display_pix` com `ActionData{qr_code, copy_p
 **Deps:** nenhuma (estende interface existente; atualizar assert + propay).
 
 ## WI-P2 · PaymentSelection + Charge
-**Objetivo:** modelar pagamento como seleção de charges por tipo/método — destrava misto/gift card/loyalty sem refactor futuro.
+**Objetivo:** modelar pagamento como seleção de charges por tipo/método - destrava misto/gift card/loyalty sem refactor futuro.
 **Arquivos:** `internal/models/payment_selection.go`; migração `000012_payment_charges`; `internal/orders/repository.go` (+ testes)
 **Migração 000012:** `payment_charges(id, order_id FK, type TEXT CHECK IN ('main','giftcard','loyalty'), method TEXT, amount_cents BIGINT, reference TEXT, status TEXT, created_at)`. Índice por order_id.
 **Model:**
@@ -122,7 +122,7 @@ Na criação da order: inserir 1 charge `main` com `amount_cents = total_cents`.
 **Deps:** WI-P1 (VerifyWebhook), WI-F2 (evento).
 
 ## WI-P5 · Saga de place-order com compensação
-**Objetivo:** robustez transacional na parte que sai do banco (gateway, estoque, email) — rollback reverso.
+**Objetivo:** robustez transacional na parte que sai do banco (gateway, estoque, email) - rollback reverso.
 **Arquivos:** `internal/checkout/{saga.go,state_store.go,saga_test.go}`; integra `orders`/`payment`/`variants`
 **Modelo:**
 ```go
@@ -146,7 +146,7 @@ Sequência: `validar cart → reservar estoque (Reserve) → criar order (unpaid
 - Cart de 1 delivery: API/UX inalterada (default transparente).
 - Schema aceita 2 deliveries com métodos/endereços distintos.
 - Total da order = Σ subtotais das deliveries + Σ frete.
-**Deps:** toca cart/order — **antes do WI-P5**.
+**Deps:** toca cart/order - **antes do WI-P5**.
 
 ## WI-S2 · Sourcing port + estoque por source (source default)
 **Objetivo:** generalizar estoque de 1 local para N; costura de multi-armazém.
@@ -156,13 +156,13 @@ Sequência: `validar cart → reservar estoque (Reserve) → criar order (unpaid
 **Aceite:**
 - Reserve/Claim/Release por (variant, source) atômico; single-source transparente.
 - `SingleSourceAllocator` aloca tudo do source default; interface pronta p/ multi-source.
-**Deps:** toca variants/order — **antes do WI-P5**.
+**Deps:** toca variants/order - **antes do WI-P5**.
 
 **➡ Fim da Phase 2:** PIX robusto (FlowStatus/saga/idempotência), fundação (Money/eventos), costuras (delivery/source) instaladas com defaults. Emails via event bus.
 
 ---
 
-# FASE 5 — Growth (promoções, catálogo, busca)
+# FASE 5 - Growth (promoções, catálogo, busca)
 
 ## WI-G1 · Promoções / cupons (`AppliedDiscount` + port `VoucherHandler`)
 Migração `discounts` (ou `applied_discounts(order_id/cart_id, level, type, applied_cents NEG, is_item_related, sort_order, campaign_code, coupon_code)`) + `cart.applied_coupon_codes`. Model `AppliedDiscount`. Port `VoucherHandler.Apply(cart, code) []AppliedDiscount` (**default no-op**). Item ganha `row_price_cents_with_discount` (rateio via `money.Allocate`). Core só agrega (`MergeDiscounts`); **nenhuma regra no core**. Aceite: cupom 10% aplica desconto cart-level rateado por item; cupom inválido → erro; desconto congelado no order.
@@ -181,7 +181,7 @@ Migração: `products.type` (simple|configurable|bundle), `products.attributes J
 
 ---
 
-# FASE 7 — Scale (multi-delivery, sourcing, B2B)
+# FASE 7 - Scale (multi-delivery, sourcing, B2B)
 
 - **WI-C1 · Multi-delivery ativo:** UX/endpoints para 2+ deliveries (envio + retirada na loja), `location_type` (address/store/pickup-point), carrier/prazo por delivery. Usa a costura WI-S1.
 - **WI-C2 · Sourcing multi-armazém:** `MultiSourceAllocator` (proximidade/CEP/prioridade, deduz cart), `StockProvider` por source, restrição por source. Usa a costura WI-S2.
@@ -191,7 +191,7 @@ Migração: `products.type` (simple|configurable|bundle), `products.attributes J
 
 ---
 
-# FASE 8 — Enterprise (multi-tenant, multi-currency, GraphQL)
+# FASE 8 - Enterprise (multi-tenant, multi-currency, GraphQL)
 
 - **WI-E1 · Multi-tenant:** `tenant_id` (default single) em todas as tabelas de negócio + middleware de resolução de tenant + RBAC por loja. Costura já prevista; ativar quando SaaS multi-loja.
 - **WI-E2 · Multi-currency real:** popular tabela de moeda (WI-F1), preço/estoque por moeda, guard já pronto.
@@ -208,6 +208,6 @@ Migração: `products.type` (simple|configurable|bundle), `products.attributes J
 
 ## Convenções de execução
 - Cada WI é uma branch/PR isolado com testes. Migrações sequenciais (próxima livre após 000011 = 000012).
-- Costuras (S1/S2) e modelo de pagamento (P2) são **aditivos** (default implícito) — não quebram o caminho atual.
+- Costuras (S1/S2) e modelo de pagamento (P2) são **aditivos** (default implícito) - não quebram o caminho atual.
 - Feature flags por ENV: `ECOMMERCE_PROFILE`, `FEATURE_PROMOTIONS`, `FEATURE_MULTI_DELIVERY`, `FEATURE_MULTI_SOURCE`, `PAYMENT_PROVIDER`, `SEARCH_BACKEND`, `SAGA_STORE`.
 - Nada de porta sem ≥2 implementações plausíveis; nada de flag sem default seguro.

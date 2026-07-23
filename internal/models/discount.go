@@ -9,7 +9,7 @@ import (
 // DiscountLevel names where in the pricing breakdown a discount lands. WHY an
 // explicit level: the same money reduction is presented and refunded differently
 // depending on whether it hit a line item, the delivery fee, the whole cart, or
-// shipping — the level is what lets downstream code attribute the reduction.
+// shipping - the level is what lets downstream code attribute the reduction.
 type DiscountLevel string
 
 const (

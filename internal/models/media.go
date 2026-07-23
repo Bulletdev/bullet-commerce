@@ -17,7 +17,7 @@ const (
 // ProductMedia is an image or video attached to a product or one of its variants.
 // A NULL VariantID means the media belongs to the product as a whole; a set VariantID
 // scopes it to a specific variant (e.g. the photo of the "blue" colorway). The file
-// itself is never stored here — Url points at an external CDN/bucket object.
+// itself is never stored here - Url points at an external CDN/bucket object.
 type ProductMedia struct {
 	ID        uuid.UUID  `json:"id" db:"id"`
 	ProductID uuid.UUID  `json:"product_id" db:"product_id"`
@@ -32,7 +32,7 @@ type ProductMedia struct {
 
 // ValidMediaKind reports whether k is a kind the schema accepts. An empty kind is
 // caller's cue to default to image (handled where the media is built), so it is not
-// accepted here — this guards an explicitly supplied value.
+// accepted here - this guards an explicitly supplied value.
 func ValidMediaKind(k string) bool {
 	return k == MediaKindImage || k == MediaKindVideo
 }

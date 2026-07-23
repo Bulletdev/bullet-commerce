@@ -6,7 +6,7 @@ import (
 	"github.com/anthropics/anthropic-sdk-go"
 )
 
-// The default (Haiku) path must NOT send effort/thinking — Haiku 4.5 rejects
+// The default (Haiku) path must NOT send effort/thinking - Haiku 4.5 rejects
 // effort with a 400, so this is a correctness guard on the highest-volume path.
 func TestBuildParamsDefaultOmitsEffortAndThinking(t *testing.T) {
 	params := buildParams(LLMRequest{

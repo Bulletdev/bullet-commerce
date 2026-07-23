@@ -83,7 +83,7 @@ const (
 )
 
 // LLMRequest is the provider-agnostic request. Effort == "" means the default
-// tier (Haiku): no effort/thinking is sent — Haiku 4.5 rejects effort with a 400,
+// tier (Haiku): no effort/thinking is sent - Haiku 4.5 rejects effort with a 400,
 // so omitting it on the highest-volume path is deliberate.
 type LLMRequest struct {
 	Model    string
@@ -152,7 +152,7 @@ type claudeProvider struct {
 var _ LLMProvider = (*claudeProvider)(nil)
 
 // NewClaudeProvider builds the Claude-backed provider. It fails fast when no key
-// is configured (init-time, not request-time). No network call is made here — a
+// is configured (init-time, not request-time). No network call is made here - a
 // missing key never reaches the API, and building/testing needs no key because
 // the fakeProvider is used in tests.
 func NewClaudeProvider(cfg Config) (LLMProvider, error) {
@@ -176,7 +176,7 @@ func (p *claudeProvider) Stream(ctx context.Context, req LLMRequest) (LLMStream,
 // buildParams translates the domain request into SDK params. Prompt caching:
 // one cache_control breakpoint on the system block. WHY there: render order is
 // tools -> system -> messages, so a breakpoint on system caches the stable
-// prefix (tool schemas + system prompt) together — the meta the PRD leans on for
+// prefix (tool schemas + system prompt) together - the meta the PRD leans on for
 // cost (M7) and TTFT. Thinking/effort are sent ONLY when req.Effort is set (hard
 // tier); the default Haiku path omits both to avoid a 400.
 func buildParams(req LLMRequest) anthropic.MessageNewParams {

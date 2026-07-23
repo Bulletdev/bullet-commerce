@@ -122,7 +122,7 @@ func TestGetMyOrderStatusOwner(t *testing.T) {
 	}
 }
 
-// USER ISOLATION: user A must NOT see user B's order — collapsed to "not found",
+// USER ISOLATION: user A must NOT see user B's order - collapsed to "not found",
 // leaking neither the status nor the existence of the order.
 func TestGetMyOrderStatusUserIsolation(t *testing.T) {
 	userA := uuid.New()

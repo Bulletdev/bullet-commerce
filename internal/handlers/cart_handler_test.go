@@ -139,7 +139,7 @@ func TestCartHandler_AddItem(t *testing.T) {
 	testProduct := &models.Product{ID: productID, Name: "Test Item", PriceCents: 1999}
 	testQuantity := 2
 	// The default variant resolves the sellable unit. Price is materialized on the variant
-	// (NOT NULL), so the line takes variant.PriceCents directly — here equal to the product's.
+	// (NOT NULL), so the line takes variant.PriceCents directly - here equal to the product's.
 	testVariant := models.ProductVariant{ID: uuid.New(), ProductID: productID, SKU: "default-" + productID.String(), PriceCents: testProduct.PriceCents}
 	testCartItem := &models.CartItem{CartID: testCart.ID, ProductID: productID, VariantID: testVariant.ID, Quantity: testQuantity, PriceCents: testProduct.PriceCents}
 

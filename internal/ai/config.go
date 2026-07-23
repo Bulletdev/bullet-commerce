@@ -1,6 +1,6 @@
 // Package ai is the OPTIONAL, feature-gated AI assistant capability for the
 // bullet-commerce store. It is off by default and only becomes reachable when an
-// ANTHROPIC_API_KEY is present AND FEATURE_AI_ASSISTANT=true — see Config.Active.
+// ANTHROPIC_API_KEY is present AND FEATURE_AI_ASSISTANT=true - see Config.Active.
 //
 // The package follows the same ports & adapters shape as internal/payment and
 // internal/shipping: one port per external capability (LLMProvider), a thin
@@ -11,13 +11,13 @@
 // Scope of this foundation: gated provider + tool-use loop with read-only tools.
 // TODO(v2): semantic RAG retrieval, evals harness, observability/tracing, and
 // state-mutating tools (add_to_cart, initiate_return, create_pix_charge) are
-// intentionally left out — the ports here are designed so those arrive as new
+// intentionally left out - the ports here are designed so those arrive as new
 // adapters, not rewrites.
 package ai
 
 // Config carries the effective AI-assistant settings. WHY injected (not read
 // from internal/config here): this package must not depend on the app's config
-// loader — the wiring layer resolves the env vars and hands values in, keeping
+// loader - the wiring layer resolves the env vars and hands values in, keeping
 // ai/** free of infra coupling and trivially testable.
 type Config struct {
 	// Enabled mirrors the FEATURE_AI_ASSISTANT flag.

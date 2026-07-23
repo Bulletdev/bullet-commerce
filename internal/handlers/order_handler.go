@@ -30,7 +30,7 @@ type OrderHandler struct {
 	CartRepo    cart.CartRepository
 	AddressRepo addresses.AddressRepository
 	// PaymentRegistry + PaymentProvider select the configured PSP for the pay flow. The
-	// handler never imports a concrete provider — it resolves one by config name.
+	// handler never imports a concrete provider - it resolves one by config name.
 	PaymentRegistry *payment.Registry
 	PaymentProvider payment.Name
 }
@@ -93,7 +93,7 @@ func (h *OrderHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 				webutils.RawJSON(w, rec.ResponseStatus, rec.ResponseBody)
 				return
 			}
-			// An identical request is still being processed — do not start a second one.
+			// An identical request is still being processed - do not start a second one.
 			webutils.ErrorJSON(w, errors.New("a request with this Idempotency-Key is already in progress"), http.StatusConflict)
 			return
 		}
@@ -130,7 +130,7 @@ func (h *OrderHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Reserve the idempotency key immediately before creating the order — this INSERT is the
+	// Reserve the idempotency key immediately before creating the order - this INSERT is the
 	// serialization point that makes the double-click reserve stock exactly once. WHY here (not
 	// at the top): the read-only validations above may legitimately fail and be retried, so we
 	// only gate the state-changing step. A lost race (claimed == false) means a concurrent
@@ -410,7 +410,7 @@ type RefundOrderRequest struct {
 	AmountCents int64               `json:"amount_cents"`
 }
 
-// RefundOrder refunds a paid order (ADMIN ONLY — wired on the admin subrouter). It resolves
+// RefundOrder refunds a paid order (ADMIN ONLY - wired on the admin subrouter). It resolves
 // the configured PSP and requires it to implement payment.Refunder; a provider without that
 // capability yields 501. The financial refund, the payment_status flip and any per-item
 // restock all happen in one transaction inside the order repository.
@@ -438,7 +438,7 @@ func (h *OrderHandler) RefundOrder(w http.ResponseWriter, r *http.Request) {
 		webutils.ErrorJSON(w, errors.New("payment provider not available"), http.StatusServiceUnavailable)
 		return
 	}
-	// Refunder is an optional PSP capability — reach it by type assertion, never redefine it.
+	// Refunder is an optional PSP capability - reach it by type assertion, never redefine it.
 	refunder, ok := provider.(payment.Refunder)
 	if !ok {
 		webutils.ErrorJSON(w, errors.New("payment provider does not support refunds"), http.StatusNotImplemented)
@@ -467,7 +467,7 @@ func (h *OrderHandler) RefundOrder(w http.ResponseWriter, r *http.Request) {
 		case errors.Is(err, orders.ErrRefundItemNotFound):
 			webutils.ErrorJSON(w, err, http.StatusBadRequest)
 		default:
-			// PSP refund call or persistence failed — treat as an upstream/gateway error.
+			// PSP refund call or persistence failed - treat as an upstream/gateway error.
 			slog.Error("failed to refund order", "order_id", orderID, "error", err)
 			webutils.ErrorJSON(w, errors.New("failed to refund order"), http.StatusBadGateway)
 		}

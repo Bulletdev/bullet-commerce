@@ -2,7 +2,7 @@
 // offer upload-via-presigned-URL WITHOUT the API ever touching file bytes: the client PUTs
 // straight to an S3-compatible bucket (S3 / Cloudflare R2 / MinIO) using a short-lived signed
 // URL, then registers the resulting public URL as product media. The feature is behind a gate
-// (Config.Active) mirroring the project's other optional providers — when storage is not
+// (Config.Active) mirroring the project's other optional providers - when storage is not
 // configured the URL-reference flow keeps working and only the upload endpoint is unavailable.
 package storage
 
@@ -18,7 +18,7 @@ type Provider interface {
 
 // Config carries the storage credentials/coordinates. Values are injected by the composition
 // root (main.go); this package never reads internal/config so it stays free of the config
-// vertical. Secrets live only in these fields at runtime — never hardcoded.
+// vertical. Secrets live only in these fields at runtime - never hardcoded.
 type Config struct {
 	Enabled       bool
 	Bucket        string
@@ -30,7 +30,7 @@ type Config struct {
 }
 
 // Active reports whether the upload flow can run. WHY both checks: an operator may flip Enabled
-// on before finishing setup, and a bucket-less config cannot presign anything — either way the
+// on before finishing setup, and a bucket-less config cannot presign anything - either way the
 // handler must fall back to "upload unavailable" instead of dereferencing a half-built client.
 func (c Config) Active() bool {
 	return c.Enabled && c.Bucket != ""

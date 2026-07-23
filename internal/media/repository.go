@@ -1,5 +1,5 @@
 // Package media owns product_media: images/videos attached to a product or one of its
-// variants. It is a thin persistence layer — the API never stores files, only rows that
+// variants. It is a thin persistence layer - the API never stores files, only rows that
 // reference external CDN/bucket URLs (PRD Catalog v2 §3.1). Two ingestion flows converge
 // here with the same row shape: an admin referencing an existing CDN URL, or an admin
 // registering the public URL produced by a presigned upload (see internal/storage).
@@ -56,8 +56,8 @@ func (r *postgresMediaRepository) Create(ctx context.Context, m *models.ProductM
 	return m, nil
 }
 
-// ListByProduct returns a product's whole gallery — product-level media (variant_id NULL)
-// and every variant's media — ordered so the primary (lowest position) comes first.
+// ListByProduct returns a product's whole gallery - product-level media (variant_id NULL)
+// and every variant's media - ordered so the primary (lowest position) comes first.
 func (r *postgresMediaRepository) ListByProduct(ctx context.Context, productID uuid.UUID) ([]models.ProductMedia, error) {
 	query := `
 		SELECT id, product_id, variant_id, url, alt, kind, position, created_at, updated_at

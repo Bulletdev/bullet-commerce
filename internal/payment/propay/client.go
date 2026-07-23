@@ -51,7 +51,7 @@ type Config struct {
 }
 
 // Client is a stateless ProPay adapter. Safe for concurrent use.
-// Compile-time proof that Client satisfies the provider contract — any change to
+// Compile-time proof that Client satisfies the provider contract - any change to
 // payment.Provider breaks this build immediately, not at runtime registration.
 var _ payment.Provider = (*Client)(nil)
 
@@ -78,7 +78,7 @@ func (c *Client) Name() payment.Name { return providerName }
 //	  "aud": ["propay"], "iss": "bullet-commerce", "exp": "<now + 5min>" }
 //
 // user_id is REQUIRED: ProPay's Middleware::Auth#valid? reads user_id from the
-// decoded token and rejects (401) any token without it — even a role=service one.
+// decoded token and rejects (401) any token without it - even a role=service one.
 // It is set to the literal "bullet-commerce" because the service route is machine-to-
 // machine and has no per-user identity. role=service is what the future
 // /v1/service/charges route gates on via auth.service?.
@@ -260,7 +260,7 @@ func (c *Client) do(ctx context.Context, method, path string, payloadBody any, i
 
 // decodeChargeResponse unwraps ProPay's {"data": {...}} charge envelope, tolerating
 // a bare object so a direct provider payload still parses. Shared by parseCharge
-// and FlowState — the latter needs the untouched status string to tell "approved"
+// and FlowState - the latter needs the untouched status string to tell "approved"
 // from "paid", which normalizeStatus deliberately collapses.
 func decodeChargeResponse(raw json.RawMessage) (*chargeResponse, error) {
 	var env struct {
@@ -361,7 +361,7 @@ func (c *Client) VerifyWebhook(ctx context.Context, raw payment.RawWebhook) (*pa
 
 // validSignature compares the provided HMAC over the exact raw body in constant
 // time. Header format is "X-Propay-Signature: sha256=<hexlowercase>", HMAC-SHA256
-// over the raw body keyed with PROPAY_TO_GO_SECRET — the contract fixed by
+// over the raw body keyed with PROPAY_TO_GO_SECRET - the contract fixed by
 // PRD-desacoplamento.md for the ProPay -> bullet-commerce leg.
 //
 // Note: ProPay's *inbound* OpenPix leg (webhooks_handler.rb / OpenpixProvider)

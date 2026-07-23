@@ -53,7 +53,7 @@ func (r *postgresOrderRepository) LookupIdempotencyKey(ctx context.Context, user
 }
 
 // ClaimIdempotencyKey atomically reserves the key by inserting an in-flight row. It
-// reports isNew == true only when THIS caller won the insert — the signal to proceed
+// reports isNew == true only when THIS caller won the insert - the signal to proceed
 // with order creation. A false return means a concurrent or prior request already owns
 // the key, so the caller must Lookup and either replay (finalized) or 409 (in-flight).
 // WHY the INSERT gate (not just Lookup): two concurrent Lookups both miss, so without an
@@ -83,7 +83,7 @@ func (r *postgresOrderRepository) SaveIdempotencyKey(ctx context.Context, userID
 }
 
 // ReleaseIdempotencyKey drops a still-in-flight reservation so a retry may proceed. It is
-// called only when order creation FAILED (the tx rolled back, so no stock was reserved) —
+// called only when order creation FAILED (the tx rolled back, so no stock was reserved) -
 // caching a failed attempt would wrongly block the user from retrying. A finalized row is
 // never released (only in-flight ones are deleted).
 func (r *postgresOrderRepository) ReleaseIdempotencyKey(ctx context.Context, userID uuid.UUID, key string) error {

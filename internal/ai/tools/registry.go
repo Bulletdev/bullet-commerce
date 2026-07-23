@@ -1,6 +1,6 @@
 // Package tools holds the read-only tool handlers the AI assistant may call.
 // Each handler wraps an existing domain package (search, variants, orders)
-// through a NARROW interface — never the concrete repository constructor — so
+// through a NARROW interface - never the concrete repository constructor - so
 // the tool layer stays decoupled and easy to fake in tests.
 //
 // The registry enforces a strict allowlist: only the three registered tools can
@@ -9,7 +9,7 @@
 // (injected from the JWT), never from model-supplied input.
 //
 // TODO(v2): state-mutating tools (add_to_cart, initiate_return, create_pix_charge)
-// gated behind human confirmation — they arrive as new handlers, not a rewrite.
+// gated behind human confirmation - they arrive as new handlers, not a rewrite.
 package tools
 
 import (
@@ -62,7 +62,7 @@ func (r *Registry) Schemas() []ai.ToolSchema {
 }
 
 // Execute runs a tool by name. An unregistered name is rejected here (the
-// allowlist) as an is_error result — it never runs and never panics.
+// allowlist) as an is_error result - it never runs and never panics.
 func (r *Registry) Execute(ctx context.Context, name string, input json.RawMessage) ai.ToolResult {
 	h, ok := r.handlers[name]
 	if !ok {

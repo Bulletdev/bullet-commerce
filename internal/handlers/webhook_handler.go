@@ -60,7 +60,7 @@ func (h *WebhookHandler) HandlePayment(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if evt.Type != payment.EventChargePaid {
-		// Unknown/expired/refunded are not handled yet — acknowledge so the PSP stops retrying.
+		// Unknown/expired/refunded are not handled yet - acknowledge so the PSP stops retrying.
 		w.WriteHeader(http.StatusOK)
 		return
 	}
@@ -73,7 +73,7 @@ func (h *WebhookHandler) HandlePayment(w http.ResponseWriter, r *http.Request) {
 
 	if err := h.OrderRepo.ConfirmOrderPayment(r.Context(), orderID); err != nil {
 		if errors.Is(err, orders.ErrOrderNotFound) {
-			// Already paid, cancelled, or unknown — a duplicate/late webhook is a no-op.
+			// Already paid, cancelled, or unknown - a duplicate/late webhook is a no-op.
 			w.WriteHeader(http.StatusOK)
 			return
 		}

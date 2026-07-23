@@ -1,6 +1,6 @@
 // Package attributes owns the normalized VARIATION attributes of the catalog (§3.7 hybrid):
 // the attribute / attribute_value / variant_attribute_value tables that make the variation
-// subset of a variant's free-form JSONB queryable — facetable, validated, ordered, swatchable.
+// subset of a variant's free-form JSONB queryable - facetable, validated, ordered, swatchable.
 // The JSONB stays the source of truth for free-form metadata; these tables are a projection of
 // its variation keys. Integration into /search and the product read model is a follow-up.
 package attributes
@@ -32,7 +32,7 @@ type AttributeRepository interface {
 	LinkVariant(ctx context.Context, variantID, attributeValueID uuid.UUID) error
 	ValuesForVariant(ctx context.Context, variantID uuid.UUID) ([]models.AttributeValue, error)
 	// FacetCounts returns, per attribute value, how many non-deleted variants of the product
-	// carry it — the raw material for a faceted /search filter.
+	// carry it - the raw material for a faceted /search filter.
 	FacetCounts(ctx context.Context, productID uuid.UUID) ([]models.AttributeFacet, error)
 }
 

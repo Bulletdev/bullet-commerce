@@ -72,7 +72,7 @@ func TestFindOrderByID_Found(t *testing.T) {
 }
 
 // Given an order whose two items ship on two DISTINCT deliveries, When it is read back,
-// Then each order_item carries its own delivery_id — the schema/read path supports N
+// Then each order_item carries its own delivery_id - the schema/read path supports N
 // deliveries per order, not just the transparent default.
 func TestFindOrderByID_MultiDeliveryItems(t *testing.T) {
 	db, repo := newMock(t)
@@ -142,7 +142,7 @@ func TestUpdateOrderStatus_ValidTransition(t *testing.T) {
 func TestUpdateOrderStatus_InvalidTransition(t *testing.T) {
 	_, repo := newMock(t)
 
-	// pending → shipped is forbidden by the state machine — no DB call should be made
+	// pending → shipped is forbidden by the state machine - no DB call should be made
 	err := repo.UpdateOrderStatus(context.Background(), uuid.New(), models.StatusPending, models.StatusShipped)
 	assert.ErrorIs(t, err, ErrInvalidStatusTransition)
 }
@@ -445,7 +445,7 @@ func TestConfirmOrderPayment_AlreadyPaid(t *testing.T) {
 func TestExpireUnpaidOrders(t *testing.T) {
 	db, repo := newMock(t)
 
-	// No eligible orders — the CTE batch returns empty, so no release runs and the tx
+	// No eligible orders - the CTE batch returns empty, so no release runs and the tx
 	// commits with a zero count.
 	db.ExpectBegin()
 	db.ExpectQuery(regexp.QuoteMeta("FOR UPDATE SKIP LOCKED")).

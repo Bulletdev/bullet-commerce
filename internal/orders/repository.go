@@ -35,7 +35,7 @@ var (
 	// quantity at order creation. It wraps variants.ErrInsufficientStock so handlers can
 	// match either sentinel.
 	ErrInsufficientStock = variants.ErrInsufficientStock
-	// Refund sentinels — handlers map these to 4xx/5xx.
+	// Refund sentinels - handlers map these to 4xx/5xx.
 	ErrOrderNotRefundable      = errors.New("order cannot be refunded in its current payment status")
 	ErrRefundNotSupported      = errors.New("payment provider does not support refunds")
 	ErrRefundAmountInvalid     = errors.New("refund amount exceeds the refundable balance")
@@ -61,7 +61,7 @@ type OrderRepository interface {
 	// releases each item's reservation in the SAME transaction.
 	CancelOrder(ctx context.Context, orderID uuid.UUID) error
 	// ConfirmOrderPayment marks an order paid+processing, claims each item's stock, and
-	// flips the main charge to paid — all atomically. Called by the payment webhook.
+	// flips the main charge to paid - all atomically. Called by the payment webhook.
 	ConfirmOrderPayment(ctx context.Context, orderID uuid.UUID) error
 	// MarkPendingPayment records that a payment flow was started: it moves the order to
 	// pending_payment and stores the PSP reference so a later webhook can be reconciled.
@@ -69,7 +69,7 @@ type OrderRepository interface {
 	ExpireOrphanedOrders(ctx context.Context) (int64, error)
 	ExpireUnpaidOrders(ctx context.Context) (int64, error)
 	// RefundOrder refunds a Paid order via the financial Refunder and, for each item flagged
-	// restock, returns physical stock at the source it was claimed from — all in one tx.
+	// restock, returns physical stock at the source it was claimed from - all in one tx.
 	// amountCents == 0 means a full refund of the remaining refundable balance.
 	RefundOrder(ctx context.Context, refunder payment.Refunder, orderID uuid.UUID, items []RefundItem, amountCents int64) error
 	// Idempotency store for POST /api/orders (opt-in via the Idempotency-Key header).
@@ -90,7 +90,7 @@ type RefundItem struct {
 // variantStockRepo is the slice of the variant repository the order aggregate drives for its
 // stock invariants. Declared locally (rather than depending on the whole
 // variants.VariantRepository) so the order layer states exactly the operations it needs.
-// Restock is the inverse of Claim — it adds physical stock back at a (variant, source) — and
+// Restock is the inverse of Claim - it adds physical stock back at a (variant, source) - and
 // is implemented by the variants repository (catalog agent).
 type variantStockRepo interface {
 	Reserve(ctx context.Context, exec variants.DBExecutor, variantID, sourceID uuid.UUID, qty int) error
@@ -195,7 +195,7 @@ func (r *postgresOrderRepository) CreateOrderFromCart(ctx context.Context, userI
 	}
 
 	// Mirror the cart's default delivery onto the order (V1: the single default shipment).
-	// Freight moves onto the delivery, but the order total above is unchanged — the order
+	// Freight moves onto the delivery, but the order total above is unchanged - the order
 	// still owns shipping_cost_cents, the delivery just records which shipment incurred it.
 	var deliveryID uuid.UUID
 	if err := tx.QueryRow(ctx, `
@@ -482,7 +482,7 @@ func (r *postgresOrderRepository) ConfirmOrderPayment(ctx context.Context, order
 		return err
 	}
 	if result.RowsAffected() == 0 {
-		// Not found, soft-deleted, or already paid/failed — nothing to claim.
+		// Not found, soft-deleted, or already paid/failed - nothing to claim.
 		return ErrOrderNotFound
 	}
 
@@ -499,7 +499,7 @@ func (r *postgresOrderRepository) ConfirmOrderPayment(ctx context.Context, order
 	// Flip the main charge to paid in the SAME tx as the claim so money-state and
 	// stock-state can never diverge. ChargeRepository exposes no tx-aware status update,
 	// so this is an inline UPDATE on its table. A missing main charge (older order, or a
-	// best-effort create that failed post-commit) is not fatal — chargeRef stays empty.
+	// best-effort create that failed post-commit) is not fatal - chargeRef stays empty.
 	var chargeRef string
 	err = tx.QueryRow(ctx, `
 		UPDATE payment_charges SET status = 'paid'
@@ -554,11 +554,11 @@ func (r *postgresOrderRepository) ExpireUnpaidOrders(ctx context.Context) (int64
 // item's reservation in the SAME transaction so the status flip and the stock release
 // commit atomically. WHY the CTE + FOR UPDATE SKIP LOCKED + LIMIT shape (PRD §6 #9): the
 // SELECT ... FOR UPDATE SKIP LOCKED LIMIT lives inside the CTE and the UPDATE references
-// it, so (a) concurrent cleanup goroutines/instances never contend on the same order —
-// each skips rows another already locked — and (b) LIMIT is honored (a LIMIT + SKIP LOCKED
+// it, so (a) concurrent cleanup goroutines/instances never contend on the same order -
+// each skips rows another already locked - and (b) LIMIT is honored (a LIMIT + SKIP LOCKED
 // directly inside an UPDATE can lock more rows than LIMIT during planning). SKIP LOCKED
 // also means a row a concurrent ConfirmOrderPayment is mid-confirming is skipped, not
-// clobbered. interval is a package constant, never user input — safe to interpolate.
+// clobbered. interval is a package constant, never user input - safe to interpolate.
 func (r *postgresOrderRepository) expireOrders(ctx context.Context, paymentStatus models.PaymentStatus, interval string) (int64, error) {
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
@@ -638,7 +638,7 @@ type orderItemStock struct {
 	quantity  int
 }
 
-// loadOrderItemStock reads (variant_id, source_id, quantity) for every line of an order — the
+// loadOrderItemStock reads (variant_id, source_id, quantity) for every line of an order - the
 // source_id is what lets Release/Claim free the exact (variant, source) that was reserved. Rows
 // are fully drained before the caller issues further queries on the same tx.
 func (r *postgresOrderRepository) loadOrderItemStock(ctx context.Context, exec variants.DBExecutor, orderID uuid.UUID) ([]orderItemStock, error) {
@@ -675,7 +675,7 @@ func (r *postgresOrderRepository) releaseOrderItems(ctx context.Context, exec va
 // RefundOrder refunds a Paid order. In ONE transaction it (1) calls the financial Refunder
 // on the PSP, (2) flips payment_status to refunded/partially_refunded and stamps
 // refunded_at + refund_amount_cents, (3) marks the main charge refunded, and (4) for each
-// item flagged restock returns physical stock at the (variant, source) it was Claimed from —
+// item flagged restock returns physical stock at the (variant, source) it was Claimed from -
 // the inverse of ConfirmOrderPayment's Claim. WHY one tx: money-state and stock-state must
 // never diverge, exactly as ConfirmOrderPayment couples the claim and the charge flip.
 //
@@ -770,7 +770,7 @@ func (r *postgresOrderRepository) RefundOrder(ctx context.Context, refunder paym
 	}
 
 	// Flip the main charge to refunded in the same tx (mirrors ConfirmOrderPayment). A missing
-	// main charge is not fatal — older orders may have none.
+	// main charge is not fatal - older orders may have none.
 	if _, err := tx.Exec(ctx, `
 		UPDATE payment_charges SET status = 'refunded'
 		WHERE order_id = $1 AND type = 'main'

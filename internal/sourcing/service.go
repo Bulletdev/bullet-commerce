@@ -4,7 +4,7 @@
 // per (variant, source), and this package only chooses the source.
 //
 // V1 ships the SingleSourceAllocator: every unit is allocated from the default source, so with
-// one source the sourcing layer is transparent — the order path behaves exactly as before.
+// one source the sourcing layer is transparent - the order path behaves exactly as before.
 // Scale swaps in a MultiSourceAllocator (by proximity/priority) behind the same Allocator port
 // with no change to the order repository.
 package sourcing
@@ -47,7 +47,7 @@ type Allocator interface {
 	Allocate(ctx context.Context, items []AllocItem) ([]Allocation, error)
 }
 
-// SingleSourceAllocator sends everything to the default source — the transparent V1 behavior.
+// SingleSourceAllocator sends everything to the default source - the transparent V1 behavior.
 type SingleSourceAllocator struct {
 	defaultSourceID uuid.UUID
 }
@@ -104,10 +104,10 @@ func (p *postgresStockProvider) GetStock(ctx context.Context, variantID, sourceI
 	return available, nil
 }
 
-// ErrNoDefaultSource means the sources table has no is_default row — the 000020 seed is missing.
+// ErrNoDefaultSource means the sources table has no is_default row - the 000020 seed is missing.
 var (
 	ErrNoDefaultSource = errors.New("no default source configured")
-	// ErrSourceNotFound is returned by GetByID when the id matches no source row — the caller
+	// ErrSourceNotFound is returned by GetByID when the id matches no source row - the caller
 	// (admin stock write) maps it to 404 rather than creating a source implicitly.
 	ErrSourceNotFound = errors.New("source not found")
 )

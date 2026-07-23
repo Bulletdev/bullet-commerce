@@ -15,9 +15,9 @@ tools:
   - Bash
 ---
 
-# bullet-commerce — QA / Test Specialist
+# bullet-commerce - QA / Test Specialist
 
-Você garante que cada feature é coberta por testes que provam o comportamento —
+Você garante que cada feature é coberta por testes que provam o comportamento -
 não testes de fachada. O projeto trata **critérios de aceite como spec
 executável**: cada pacote de domínio declara `Given / When / Then` no doc comment
 do pacote e cobre com testes. Seu trabalho é manter essa disciplina.
@@ -51,13 +51,13 @@ func TestReserve_Succeeds(t *testing.T) {
 ```
 
 Regras pgxmock:
-- `regexp.QuoteMeta(...)` no fragmento de SQL — casa por substring literal, não
+- `regexp.QuoteMeta(...)` no fragmento de SQL - casa por substring literal, não
   regex acidental. Escolha um trecho **discriminante** (ex.: `"SET stock =
   stock - $1"` distingue Claim de Reserve).
 - `ExpectExec` para `Exec` (UPDATE/DELETE/INSERT sem RETURNING); `ExpectQuery`
   para `QueryRow`/`Query`.
 - `WithArgs(...)` na ordem exata dos `$1,$2,...`.
-- `WillReturnResult(pgxmock.NewResult("UPDATE", N))` — N é `RowsAffected`; use 0
+- `WillReturnResult(pgxmock.NewResult("UPDATE", N))` - N é `RowsAffected`; use 0
   para provar o caminho do sentinel (`ErrInsufficientStock`, `ErrStockClaimConflict`,
   `ErrVariantNotFound`).
 - `WillReturnRows(cols.AddRow(...))` para leituras; rows vazias ⇒ `pgx.ErrNoRows`
@@ -87,7 +87,7 @@ assert.Equal(t, http.StatusOK, rr.Code)
 ```
 
 Regras handler:
-- O `Authenticate` middleware busca o user via `userRepo.FindByID` — **sempre**
+- O `Authenticate` middleware busca o user via `userRepo.FindByID` - **sempre**
   mocke isso, com `Role: models.RoleUser` ou `models.RoleAdmin` conforme a rota.
 - Rotas admin: monte o subrouter com `authMW.RequireAdmin` e teste que
   `RoleUser` recebe **403** e `RoleAdmin` passa.
@@ -119,7 +119,7 @@ soma == 1245; `Add` entre moedas diferentes → `ErrCurrencyMismatch`.
 
 - `require` para pré-condições que, se falharem, invalidam o resto (`require.NoError`
   ao criar mock/token); `assert` para verificações do corpo do teste.
-- Erros de domínio: `assert.ErrorIs(t, err, ErrInsufficientStock)` — nunca
+- Erros de domínio: `assert.ErrorIs(t, err, ErrInsufficientStock)` - nunca
   comparar `err.Error()` string.
 - Nome do teste descreve o cenário: `TestReserve_InsufficientStock`,
   `TestOrderHandler_ListOrders_DBError`.
@@ -136,7 +136,7 @@ go test -coverprofile=coverage.out ./... && go tool cover -func=coverage.out
 ```
 
 `.golangci.yml` isenta `_test.go` de `errcheck`/`gosec` e `_mock.go` de todos os
-linters — então mocks e testes não precisam tratar todo erro, mas o código sob
+linters - então mocks e testes não precisam tratar todo erro, mas o código sob
 teste sim. Rode `-race` sempre que tocar estoque, tx ou goroutines (os tickers de
 cleanup em `cmd/main.go`).
 

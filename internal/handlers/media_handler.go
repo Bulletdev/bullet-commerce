@@ -16,7 +16,7 @@ import (
 
 // MediaHandler serves the two product-media ingestion flows plus deletion. Storage may be nil:
 // when object storage is not configured the presign endpoint answers 501 and only the
-// URL-reference flow (AddMedia) stays available — the catalog can still carry CDN images.
+// URL-reference flow (AddMedia) stays available - the catalog can still carry CDN images.
 type MediaHandler struct {
 	MediaRepo media.MediaRepository
 	Storage   storage.Provider
@@ -26,7 +26,7 @@ func NewMediaHandler(mediaRepo media.MediaRepository, store storage.Provider) *M
 	return &MediaHandler{MediaRepo: mediaRepo, Storage: store}
 }
 
-// AddMediaRequest is the body of POST /api/products/{id}/media — registering media by URL,
+// AddMediaRequest is the body of POST /api/products/{id}/media - registering media by URL,
 // whether that URL is an existing CDN object or the public URL returned by a presigned upload.
 type AddMediaRequest struct {
 	URL       string     `json:"url"`
@@ -84,7 +84,7 @@ func (h *MediaHandler) AddMedia(w http.ResponseWriter, r *http.Request) {
 	webutils.WriteJSON(w, http.StatusCreated, created)
 }
 
-// UploadURLRequest is the body of POST /api/media/upload-url — asking for a presigned PUT.
+// UploadURLRequest is the body of POST /api/media/upload-url - asking for a presigned PUT.
 type UploadURLRequest struct {
 	Filename    string `json:"filename"`
 	ContentType string `json:"content_type"`
@@ -99,7 +99,7 @@ type UploadURLResponse struct {
 }
 
 // UploadURL handles POST /api/media/upload-url (admin): mint a presigned PUT URL. When object
-// storage is not configured it answers 501 — the URL-reference flow (AddMedia) still works, so
+// storage is not configured it answers 501 - the URL-reference flow (AddMedia) still works, so
 // this is "feature not enabled", not a client error.
 func (h *MediaHandler) UploadURL(w http.ResponseWriter, r *http.Request) {
 	if h.Storage == nil {

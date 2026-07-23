@@ -37,7 +37,7 @@ type Config struct {
 	ShippingSenderCEP string
 
 	// Object storage (12-factor: optional, gated by STORAGE_ENABLED; secrets never in code).
-	// When disabled the media vertical still serves the URL-reference flow — only presigned
+	// When disabled the media vertical still serves the URL-reference flow - only presigned
 	// uploads are unavailable.
 	StorageEnabled       bool
 	StorageBucket        string

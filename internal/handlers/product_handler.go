@@ -126,8 +126,8 @@ type UpdateStockRequest struct {
 const stockEndpointSunset = "Sat, 23 Jan 2027 00:00:00 GMT"
 
 // stockWriteResult is the response of both stock-write paths. It names exactly which
-// (variant, source) was touched — an admin thinking in product/variant terms needs to see where
-// the write actually landed — plus the variant's aggregate availability across all sources.
+// (variant, source) was touched - an admin thinking in product/variant terms needs to see where
+// the write actually landed - plus the variant's aggregate availability across all sources.
 type stockWriteResult struct {
 	VariantID        uuid.UUID `json:"variant_id"`
 	SourceID         uuid.UUID `json:"source_id"`
@@ -138,7 +138,7 @@ type stockWriteResult struct {
 
 // errNoVariants / ambiguousVariantError explain why the product-level stock endpoint cannot pick
 // a target variant: a product with zero variants has nothing to stock, and one with several real
-// variants has no unambiguous default — both steer the admin to the per-variant endpoint.
+// variants has no unambiguous default - both steer the admin to the per-variant endpoint.
 var errNoVariants = errors.New("product has no variants; create one via POST /products/{id}/variants before setting stock")
 
 type ambiguousVariantError struct{ VariantIDs []string }
@@ -175,7 +175,7 @@ func (h *ProductHandler) resolveDefaultVariant(ctx context.Context, productID uu
 }
 
 // writeVariantStock is the single place the stock invariant is applied. It validates the variant
-// and target source (an explicit source must exist — 404, never created implicitly; otherwise the
+// and target source (an explicit source must exist - 404, never created implicitly; otherwise the
 // transparent default), performs the absolute SetStock UPSERT, and assembles the response with the
 // variant's aggregate availability. Returns ok=false after already having written the error
 // response. Both the per-variant and the deprecated product-level endpoints funnel through here.

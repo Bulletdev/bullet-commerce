@@ -7,17 +7,17 @@
 //
 // # Acceptance scenarios (Given/When/Then)
 //
-// SplitInPayables — Given 1245 cents split into 6 payables, When SplitInPayables(6)
+// SplitInPayables - Given 1245 cents split into 6 payables, When SplitInPayables(6)
 // is called, Then the parts sum exactly to 1245 (five parts of 208 + one of 205,
 // i.e. the 3-cent remainder is spread one cent at a time across the first parts).
 //
-// Allocate — Given 100 cents allocated by weights [3,1], When Allocate is called,
+// Allocate - Given 100 cents allocated by weights [3,1], When Allocate is called,
 // Then the result is [75,25] and the parts sum exactly to 100.
 //
-// Add — Given two Money values in different currencies, When Add is called, Then it
+// Add - Given two Money values in different currencies, When Add is called, Then it
 // returns ErrCurrencyMismatch and a zero Money.
 //
-// MulQty — Given 990 cents and quantity 3, When MulQty(3) is called, Then the result
+// MulQty - Given 990 cents and quantity 3, When MulQty(3) is called, Then the result
 // is 2970 cents in the same currency.
 package money
 
@@ -62,7 +62,7 @@ func (m Money) Sub(o Money) (Money, error) {
 
 // MulQty scales the amount by an integer quantity (e.g. line item price × qty).
 // WHY int and not Money: a quantity is dimensionless, so multiplying two Money
-// values would be meaningless — only scalar scaling is defined.
+// values would be meaningless - only scalar scaling is defined.
 func (m Money) MulQty(q int) Money {
 	return Money{Cents: m.Cents * int64(q), Currency: m.Currency}
 }
@@ -103,7 +103,7 @@ func (m Money) SplitInPayables(n int) []Money {
 // WHY largest-remainder again: proportional shares are rarely whole cents, so each
 // share is floored and the leftover cents (total - sum of floors) are handed out one
 // at a time to the shares with the largest fractional remainders. This keeps the
-// result deterministic and makes the parts sum exactly to m.Cents — the invariant
+// result deterministic and makes the parts sum exactly to m.Cents - the invariant
 // needed when spreading an order-level discount or freight across line items.
 //
 // Empty or all-zero weights yield an empty slice (nothing to allocate against).

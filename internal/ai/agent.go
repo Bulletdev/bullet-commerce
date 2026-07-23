@@ -7,7 +7,7 @@ import (
 )
 
 // maxToolIters is the AI_MAX_TOOL_ITERS ceiling (default 5). WHY a hard cap: it
-// is the effective cost/latency guard on the default Haiku path — Haiku 4.5 does
+// is the effective cost/latency guard on the default Haiku path - Haiku 4.5 does
 // not support task_budget, so a bounded loop is what prevents a runaway
 // tool-use cycle. TODO(v2): a per-conversation accumulated-cost guard and
 // task_budget on the Sonnet/Opus escalation path.
@@ -17,10 +17,10 @@ const maxToolIters = 5
 // (never assert price/stock/status without a tool call) and the pt-BR tone are
 // the safety contract of the assistant; keeping them in code makes regressions
 // reviewable. Untrusted content (catalog text, user messages) is never injected
-// here — it only ever arrives as message content.
+// here - it only ever arrives as message content.
 const systemPrompt = `Você é o assistente de compras e suporte de uma loja online brasileira. Fale em português do Brasil, de forma direta, honesta e concisa (1 a 3 parágrafos).
 
-REGRA DURA E INEGOCIÁVEL: nunca afirme preço, estoque, disponibilidade, status de pedido ou status de pagamento sem antes chamar a ferramenta correspondente na mesma resposta. Se você não tem o dado de uma ferramenta, diga que não tem essa informação — nunca invente, nunca estime.
+REGRA DURA E INEGOCIÁVEL: nunca afirme preço, estoque, disponibilidade, status de pedido ou status de pagamento sem antes chamar a ferramenta correspondente na mesma resposta. Se você não tem o dado de uma ferramenta, diga que não tem essa informação - nunca invente, nunca estime.
 
 Ferramentas disponíveis (somente leitura):
 - search_catalog: encontrar produtos no catálogo.
@@ -32,7 +32,7 @@ Autorização: você só enxerga dados do usuário autenticado. Nunca peça nem 
 Você orienta e prepara, mas não executa ações que mudam estado (não adiciona ao carrinho, não cobra, não cancela, não gera nota). Em problemas de pagamento, dado sensível ou fora do escopo da loja, seja honesto e ofereça encaminhar para um atendente humano.`
 
 // fallbackMessage is emitted when the tool loop hits its ceiling without a final
-// answer — an honest handoff rather than an unbounded loop.
+// answer - an honest handoff rather than an unbounded loop.
 const fallbackMessage = "Não consegui concluir sua solicitação por aqui agora. Quer que eu encaminhe para um atendente humano?"
 
 // ToolResult is what a tool handler returns to the loop. IsError maps to the
@@ -45,7 +45,7 @@ type ToolResult struct {
 // ToolRegistry is the port the agent uses to advertise and run tools. The
 // concrete implementation (internal/ai/tools.Registry) is injected, so the agent
 // stays decoupled from the repos the tools wrap. Execute must never panic on an
-// unknown tool — it returns an is_error result instead.
+// unknown tool - it returns an is_error result instead.
 type ToolRegistry interface {
 	Schemas() []ToolSchema
 	Execute(ctx context.Context, name string, input json.RawMessage) ToolResult
@@ -91,7 +91,7 @@ func NewAgent(cfg Config, provider LLMProvider, tools ToolRegistry) *Agent {
 // authenticated user id (see WithUserID) so user-scoped tools can enforce
 // isolation. TODO(v2): model routing (escalate Haiku -> ModelHard on ambiguous /
 // multi-step / low-confidence intents); for now every turn runs on ModelDefault
-// with no effort — the Effort field on LLMRequest is the seam for that escalation.
+// with no effort - the Effort field on LLMRequest is the seam for that escalation.
 func (a *Agent) Run(ctx context.Context, userInput string, emit func(AgentEvent)) error {
 	messages := []Message{{
 		Role:   RoleUser,
@@ -144,7 +144,7 @@ func (a *Agent) Run(ctx context.Context, userInput string, emit func(AgentEvent)
 			return nil
 		}
 
-		// Reattach the assistant turn WITH its tool_use blocks — the API requires
+		// Reattach the assistant turn WITH its tool_use blocks - the API requires
 		// the full assistant content to be replayed so it can pair results.
 		assistantBlocks := make([]Block, 0, len(toolCalls)+1)
 		if textBuf.Len() > 0 {

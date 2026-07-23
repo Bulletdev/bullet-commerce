@@ -9,7 +9,7 @@ import (
 // userCtxKey is the private context key under which the authenticated user id
 // travels from the HTTP layer down to the order tool. WHY here (package ai) and
 // not in package tools: handler.go (package ai) sets it and the tools package
-// reads it, and tools already imports ai — putting the key here avoids an import
+// reads it, and tools already imports ai - putting the key here avoids an import
 // cycle while keeping a single source of truth for user scoping.
 type userCtxKey struct{}
 

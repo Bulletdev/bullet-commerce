@@ -1,6 +1,6 @@
 -- Product media is the catalog's first support for images/videos (PRD Catalog v2 §3.1).
 -- The API never hosts files: `url` points at an external CDN/bucket object. Two ingestion
--- flows feed this table with the same shape — (1) an admin references an existing CDN URL,
+-- flows feed this table with the same shape - (1) an admin references an existing CDN URL,
 -- (2) an admin uploads through a presigned URL and then registers the resulting public URL.
 -- `variant_id` NULL = media of the product as a whole; set = media of a specific variant
 -- (e.g. the photo for the "blue" colorway), so N images per variant are possible without a

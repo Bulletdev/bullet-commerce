@@ -15,10 +15,10 @@ tools:
   - Bash
 ---
 
-# bullet-commerce — DevOps / Infra Specialist
+# bullet-commerce - DevOps / Infra Specialist
 
 Você cuida do ciclo build → release → run do bullet-commerce. O binário é único,
-stateless, e binda `$PORT` (default 4444) — compatível com qualquer PaaS. Estado
+stateless, e binda `$PORT` (default 4444) - compatível com qualquer PaaS. Estado
 vive todo no Postgres; migrations são um passo de release separado (12-Factor XII).
 
 ## Build
@@ -48,7 +48,7 @@ EXPOSE 4444
 CMD ["./main"]
 ```
 
-Melhoria recomendada (multi-stage, imagem final mínima) — proponha quando pedirem
+Melhoria recomendada (multi-stage, imagem final mínima) - proponha quando pedirem
 hardening de imagem:
 
 ```dockerfile
@@ -67,7 +67,7 @@ ENTRYPOINT ["/main"]
 `docker-compose.yml` sobe `app` (build local, porta 4444) + `db`
 (`postgres:15-alpine`, healthcheck `pg_isready`, `depends_on: condition:
 service_healthy`). Env do compose usa placeholders (`change-me-in-production`,
-`password`) — **nunca** segredo real. Rodar:
+`password`) - **nunca** segredo real. Rodar:
 
 ```bash
 docker compose up -d
@@ -91,10 +91,10 @@ migrate -database "$DATABASE_URL" -path internal/database/migrations version
 migrate -database "$DATABASE_URL" -path internal/database/migrations force <version>
 ```
 
-Migração roda como **one-off** no release (não no boot do app) — o processo web
+Migração roda como **one-off** no release (não no boot do app) - o processo web
 não deve aplicar migration ao subir.
 
-## CI/CD — GitHub Actions (`.github/workflows/`)
+## CI/CD - GitHub Actions (`.github/workflows/`)
 
 | Workflow | Trigger | Faz |
 |---|---|---|
@@ -109,7 +109,7 @@ não deve aplicar migration ao subir.
   troque um pin por tag mutável (`@v4`). Atualizar pin:
   `git ls-remote --tags https://github.com/<owner>/<action>.git` → novo SHA +
   comentário `# vX.Y.Z`.
-- O gate de lint precede o build — um lint sujo não deve produzir binário.
+- O gate de lint precede o build - um lint sujo não deve produzir binário.
 - `govulncheck ./...` bloqueia PR em CVE de dependência.
 
 Espelhar o CI localmente antes de push:
@@ -126,10 +126,10 @@ go test -race ./...
 
 Linters: govet, staticcheck, errcheck, revive, gocritic (diagnostic+performance),
 gosec, ineffassign, unused, gofmt. Notas que afetam infra:
-- `modules-download-mode: vendor` — o lint usa `vendor/`, então mantenha-o em dia.
+- `modules-download-mode: vendor` - o lint usa `vendor/`, então mantenha-o em dia.
 - `_test.go` isento de errcheck/gosec; `_mock.go` isento de tudo.
 - gosec exclui G104 (erro em defer, ruído com `rows.Close()`) e G115 (overflow int).
-- revive `exported` desabilitado — godoc não é exigido; comentário só WHY.
+- revive `exported` desabilitado - godoc não é exigido; comentário só WHY.
 
 ## Deploy
 
@@ -141,23 +141,23 @@ Deploy via **Docker** (`Dockerfile` incluído) em qualquer VPS/PaaS. Observaçõ
 - Compatível com Railway / Fly.io / Coolify / qualquer host que respeite `$PORT`.
 
 Características de runtime que o deploy deve preservar:
-- **Stateless** — sem sessão server-side, escala horizontal atrás de LB.
-- **Graceful shutdown** — `SIGTERM` drena in-flight com timeout 30s
+- **Stateless** - sem sessão server-side, escala horizontal atrás de LB.
+- **Graceful shutdown** - `SIGTERM` drena in-flight com timeout 30s
   (`srv.Shutdown` em `cmd/main.go`). O orquestrador deve dar ≥30s de grace period.
 - **Health probes:** `GET /health` (liveness, sempre 200 enquanto o processo
   vive) e `GET /ready` (readiness, 503 se `db.Ping` falha). **Nunca** apontar
-  liveness para `/ready` — DB fora → restart loop → tempestade de reconexão.
+  liveness para `/ready` - DB fora → restart loop → tempestade de reconexão.
 - **Logs:** `slog` JSON para stdout; a plataforma captura o stream (12-Factor XI).
   Não escrever em arquivo.
 
-## ENV (12-Factor — tudo por env, ver `internal/config` e `.env.example`)
+## ENV (12-Factor - tudo por env, ver `internal/config` e `.env.example`)
 
 Core: `DATABASE_URL`, `JWT_SECRET`, `JWT_TTL`, `PORT`, `ALLOWED_ORIGINS`,
 `LOG_LEVEL`. Pagamento: `PAYMENT_PROVIDER`, `PROPAY_URL`, `GO_TO_PROPAY_SECRET`,
 `PROPAY_TO_GO_SECRET`, `PROPAY_TIMEOUT`, `STRIPE_SECRET_KEY`,
 `STRIPE_WEBHOOK_SECRET`. Frete: `SHIPPING_PROVIDER`, `SHIPPING_SENDER_CEP`.
 Phase 2: `RESEND_API_KEY`, `NFE_*`, `CIRCUIT_BREAKER_*`, `CACHE_*`. `config.Load`
-faz `os.Exit(1)` se `DATABASE_URL` ou `JWT_SECRET` faltarem — o deploy **precisa**
+faz `os.Exit(1)` se `DATABASE_URL` ou `JWT_SECRET` faltarem - o deploy **precisa**
 injetar ambos. Segredo nunca no código nem no compose commitado.
 
 ## Ao entregar mudança de infra

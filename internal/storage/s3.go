@@ -61,7 +61,7 @@ func (p *s3Provider) PresignPut(ctx context.Context, key, contentType string) (u
 	}
 
 	// publicURL is where the object is served from AFTER upload (a CDN/base URL the operator
-	// controls), which is generally NOT the signing endpoint — hence a separate PublicBaseURL.
+	// controls), which is generally NOT the signing endpoint - hence a separate PublicBaseURL.
 	publicURL = strings.TrimRight(p.cfg.PublicBaseURL, "/") + "/" + strings.TrimLeft(key, "/")
 	return u.String(), publicURL, nil
 }

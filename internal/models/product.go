@@ -42,7 +42,7 @@ type Product struct {
 	WidthMM     *int `json:"width_mm,omitempty" db:"width_mm"`
 	HeightMM    *int `json:"height_mm,omitempty" db:"height_mm"`
 
-	// Fiscal cadastro (migration 000023) — the subset the NF-e needs stored on the product.
+	// Fiscal cadastro (migration 000023) - the subset the NF-e needs stored on the product.
 	// NCM/CEST are nullable; Origem (mercadoria SEFAZ, 0..8) and Unit default at the DB.
 	NCM    *string `json:"ncm,omitempty" db:"ncm"`
 	CEST   *string `json:"cest,omitempty" db:"cest"`
@@ -64,7 +64,7 @@ type Product struct {
 	Version int `json:"version" db:"version"`
 
 	// Rating aggregates (columns via migration 000028, owned by the reviews agent). RatingAvg is
-	// nullable — NULL until the product has at least one review; RatingCount reads COALESCE'd to 0.
+	// nullable - NULL until the product has at least one review; RatingCount reads COALESCE'd to 0.
 	RatingAvg   *float64 `json:"rating_avg" db:"rating_avg"`
 	RatingCount int      `json:"rating_count" db:"rating_count"`
 

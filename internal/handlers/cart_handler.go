@@ -120,7 +120,7 @@ func (h *CartHandler) GetCart(w http.ResponseWriter, r *http.Request) {
 // cartDiscount re-prices the cart's coupon codes against the current subtotal and returns
 // the positive discount magnitude. WHY errors are swallowed here (0 discount): GetCart is
 // a read; a stored coupon that no longer validates (expired, min no longer met) must not
-// break cart display — it simply stops discounting until removed or re-added.
+// break cart display - it simply stops discounting until removed or re-added.
 func (h *CartHandler) cartDiscount(r *http.Request, userCart *models.Cart, subtotalCents int64) int64 {
 	if h.Voucher == nil || len(userCart.AppliedCouponCodes) == 0 {
 		return 0
@@ -292,7 +292,7 @@ func (h *CartHandler) DeleteItem(w http.ResponseWriter, r *http.Request) {
 	h.GetCart(w, r)
 }
 
-// AddCoupon handles POST /api/cart/coupon — validates the code against the current
+// AddCoupon handles POST /api/cart/coupon - validates the code against the current
 // subtotal via the voucher port before persisting it, so an invalid code is rejected
 // (400) and never attached.
 func (h *CartHandler) AddCoupon(w http.ResponseWriter, r *http.Request) {

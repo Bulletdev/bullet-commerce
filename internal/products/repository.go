@@ -38,7 +38,7 @@ type DBPool interface {
 var (
 	ErrProductNotFound = errors.New("product not found")
 	// ErrProductVersionConflict is returned by Update when the row still exists but its
-	// version no longer matches the caller's expected value — a concurrent edit won the race.
+	// version no longer matches the caller's expected value - a concurrent edit won the race.
 	ErrProductVersionConflict = errors.New("product version conflict")
 )
 

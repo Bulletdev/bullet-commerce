@@ -76,7 +76,7 @@ func main() {
 	bus := events.NewInProcessBus()
 
 	// Sourcing: resolve the default stock location and build the SingleSourceAllocator that
-	// routes every order line to it (transparent V1 — Scale swaps in a multi-source allocator
+	// routes every order line to it (transparent V1 - Scale swaps in a multi-source allocator
 	// behind the same port). A missing default source means the 000020 seed never ran.
 	sourceRepo := sourcing.NewPostgresSourceRepository(dbPool)
 	defaultSource, err := sourceRepo.GetDefault(context.Background())
@@ -148,7 +148,7 @@ func main() {
 	authMiddleware := auth.NewMiddleware(cfg.JWTSecret, userRepo)
 
 	// AI assistant: optional capability, off unless FEATURE_AI_ASSISTANT=true AND a key is set.
-	// When inactive the handler is nil and the route is never registered — no key, no endpoint.
+	// When inactive the handler is nil and the route is never registered - no key, no endpoint.
 	var aiChatHandler *ai.ChatHandler
 	aiCfg := ai.Config{Enabled: cfg.FeatureAIAssistant, APIKey: cfg.AnthropicAPIKey, ModelDefault: cfg.AIModelDefault, ModelHard: cfg.AIModelHard}
 	if aiCfg.Active() {
@@ -283,7 +283,7 @@ func setupRoutes(
 	protected.HandleFunc("/users/{userId:[0-9a-fA-F-]+}/addresses/{addressId:[0-9a-fA-F-]+}", uh.DeleteAddress).Methods(http.MethodDelete)
 	protected.HandleFunc("/users/{userId:[0-9a-fA-F-]+}/addresses/{addressId:[0-9a-fA-F-]+}/default", uh.SetDefaultAddress).Methods(http.MethodPatch)
 	// Independent billing vs shipping defaults (handlers/model landed in Round A; routes
-	// were dropped when setupRoutes was rewritten in Round B — re-registered here).
+	// were dropped when setupRoutes was rewritten in Round B - re-registered here).
 	protected.HandleFunc("/users/{userId:[0-9a-fA-F-]+}/addresses/{addressId:[0-9a-fA-F-]+}/default/billing", uh.SetDefaultBillingAddress).Methods(http.MethodPatch)
 	protected.HandleFunc("/users/{userId:[0-9a-fA-F-]+}/addresses/{addressId:[0-9a-fA-F-]+}/default/shipping", uh.SetDefaultShippingAddress).Methods(http.MethodPatch)
 
@@ -340,7 +340,7 @@ func setupRoutes(
 	// Refund (financial reversal + opt-in per-item restock). Admin-only; 501 if the PSP can't refund.
 	admin.HandleFunc("/orders/{id:[0-9a-fA-F-]+}/refund", oh.RefundOrder).Methods(http.MethodPost)
 
-	// Review moderation (approve/reject) — recomputes the product's rating aggregate.
+	// Review moderation (approve/reject) - recomputes the product's rating aggregate.
 	admin.HandleFunc("/reviews/{id:[0-9a-fA-F-]+}/moderate", reviewH.ModerateReview).Methods(http.MethodPatch)
 
 	return r

@@ -14,7 +14,7 @@ import (
 // the coupons repository, validates it against the current subtotal, and returns the
 // computed cart-level reductions. WHY it lives behind the port: the core (cart/order)
 // depends only on VoucherHandler, so swapping the no-op for this real handler is pure
-// wiring in main — no core code changes.
+// wiring in main - no core code changes.
 type CouponHandler struct {
 	repo coupons.CouponRepository
 }
@@ -71,7 +71,7 @@ func computeDiscountCents(subtotalCents int64, c *models.Coupon) int64 {
 	switch c.DiscountType {
 	case models.CouponPercent:
 		// money.Allocate splits the subtotal by weights [value, 100-value], so the first
-		// share is the coupon's cut with largest-remainder rounding — exact cents, no float.
+		// share is the coupon's cut with largest-remainder rounding - exact cents, no float.
 		parts := money.New(subtotalCents, "").Allocate([]int64{c.Value, 100 - c.Value})
 		if len(parts) == 0 {
 			return 0

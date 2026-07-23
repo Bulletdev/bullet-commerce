@@ -1,8 +1,8 @@
-# PaymentProvider — contrato consolidado
+# PaymentProvider - contrato consolidado
 
 Documento canônico da abstração de pagamento do bullet-commerce. Fonte de verdade do
 contrato: `internal/payment/provider.go`. Este arquivo explica o **porquê** do
-desenho e como cada PSP do ecossistema se encaixa — para que qualquer fork
+desenho e como cada PSP do ecossistema se encaixa - para que qualquer fork
 (freela ou projeto próprio) troque de provedor **por config**, sem tocar no core.
 
 ## Princípios (destilados do pay-rails, sem os Rails-ismos)
@@ -10,15 +10,15 @@ desenho e como cada PSP do ecossistema se encaixa — para que qualquer fork
 1. **Provider é adaptador stateless de I/O.** Fala com o PSP e **não conhece o
    banco**. Persistência e transições de estado ficam na camada de Order. (Corrige
    o maior acoplamento do `pay`, que enfia lógica de gateway no model ActiveRecord.)
-2. **Core-fields tipados + `Raw json.RawMessage`** para o específico de cada PSP —
+2. **Core-fields tipados + `Raw json.RawMessage`** para o específico de cada PSP -
    equivalente tipado ao `jsonb data` do `pay`, sem schema-less.
 3. **Dinheiro é `int64` centavos + `Currency` sempre junto.** Nunca float.
 4. **`verify` (por-PSP, no ingress) separado de `process` (genérico, idempotente).**
    A verificação de assinatura é específica do PSP; o processamento é genérico e
    idempotente por chave natural (`ReferenceID` = order id).
-5. **Seleção por `Registry` (`map[Name]Provider`)** — substitui o `constantize` de
+5. **Seleção por `Registry` (`map[Name]Provider`)** - substitui o `constantize` de
    string do Rails, populado no startup a partir de `PAYMENT_PROVIDER`.
-6. **Capabilities segregadas** (`Refunder`, `CardCharger`) — um provider PIX-only
+6. **Capabilities segregadas** (`Refunder`, `CardCharger`) - um provider PIX-only
    satisfaz só `Provider`; refund/cartão entram por type-assertion, sem tocar o core.
 
 ## Contrato
@@ -38,7 +38,7 @@ type CardCharger interface { CreateCardCharge(ctx, CardChargeRequest) (*CardChar
 Idempotência em duas camadas (padrão do `pay` + do PRD): `ReferenceID` (chave
 natural) para upsert no core **e** verificação HMAC/mTLS por-PSP no ingress.
 
-## Registry de providers — escolhido por `PAYMENT_PROVIDER`
+## Registry de providers - escolhido por `PAYMENT_PROVIDER`
 
 | `Name` | PSP | PIX | Boleto | Cartão | Confirma (webhook) | Estado |
 |---|---|---|---|---|---|---|
@@ -49,21 +49,21 @@ natural) para upsert no core **e** verificação HMAC/mTLS por-PSP no ingress.
 
 ### Mapeamento por provider
 
-- **`propay`** — `CreatePixCharge` assina JWT de serviço HS256 (`aud:["propay"]`,
+- **`propay`** - `CreatePixCharge` assina JWT de serviço HS256 (`aud:["propay"]`,
   `exp:+5min`, `GO_TO_PROPAY_SECRET`) e chama `POST {PROPAY_URL}/v1/service/charges`.
   `VerifyWebhook` valida HMAC-SHA256 do body cru com `PROPAY_TO_GO_SECRET` contra
   `X-Propay-Signature: sha256=<hex>`. ⚠️ **Formato de request/response é assumido**
-  (não há spec do ProPay no repo) — validar contra o projeto ProPay real antes do
+  (não há spec do ProPay no repo) - validar contra o projeto ProPay real antes do
   go-live e ajustar tags JSON. **TODO(phase2):** portar circuit breaker do
   prostaff-riot-gateway (5 falhas/60s → abre 30s).
-- **`efi`** — mesma interface; `CreatePixCharge` = `POST /v2/cob` (OAuth2
+- **`efi`** - mesma interface; `CreatePixCharge` = `POST /v2/cob` (OAuth2
   client_credentials + cert `.pem`); `VerifyWebhook` termina **mTLS na borda**
   (nginx/`tls.Config.ClientAuth`) + reconsulta idempotente por `txid` via
   `GetCharge` (`GET /v2/cob/:txid`). Boleto/cartão entram por `CardCharger` e uma
   futura capability de boleto. Preferir quando o fork precisar de boleto/cartão.
-- **`itau_pix`** — roda como serviço Ruby (a gem `pix_automatico_itau`); o provider
+- **`itau_pix`** - roda como serviço Ruby (a gem `pix_automatico_itau`); o provider
   Go é um cliente HTTP para esse serviço. Sweet spot: assinatura/mensalidade.
-- **`pix_static`** — usa `github.com/thiagozs/go-pixgen` para gerar copia-e-cola/QR
+- **`pix_static`** - usa `github.com/thiagozs/go-pixgen` para gerar copia-e-cola/QR
   em `CreatePixCharge`. `VerifyWebhook` não existe (sem confirmação): a transição
   para `paid` vem de ação manual do admin ou de polling do banco. Documentar o
   limite no fork que o adotar.
@@ -79,7 +79,7 @@ webhook do PSP              -> POST /api/webhooks/payment -> provider.VerifyWebh
 `ConfirmOrderPayment` (já existe no repositório de Order) é o ponto único de Claim;
 o webhook da Phase 2 apenas o chama após `VerifyWebhook`.
 
-## Configuração (12-Factor — tudo por env, segredo nunca no código)
+## Configuração (12-Factor - tudo por env, segredo nunca no código)
 
 | Env | Uso |
 |---|---|

@@ -1,7 +1,7 @@
 // Package payment defines the provider-agnostic contract the bullet-commerce core
 // uses to charge and reconcile payments. Concrete PSPs (OpenPix/ProPay, Efí,
 // Itaú PIX Automático, static PIX) live in subpackages and are selected by fork
-// config through the Registry — the core never imports a specific provider.
+// config through the Registry - the core never imports a specific provider.
 //
 // A Provider is a stateless I/O adapter: it talks to the PSP and knows nothing
 // about the database. Persistence and state transitions stay in the order layer.
@@ -86,7 +86,7 @@ type RawWebhook struct {
 	Query   map[string]string
 }
 
-// EventType normalizes webhook event kinds. Unknown means "not handled" — the
+// EventType normalizes webhook event kinds. Unknown means "not handled" - the
 // HTTP handler answers 200 and no-ops.
 type EventType string
 
@@ -100,7 +100,7 @@ const (
 // WebhookEvent is the verified, normalized result of a webhook.
 type WebhookEvent struct {
 	Provider    Name
-	EventID     string // PSP event id when present — use for dedupe
+	EventID     string // PSP event id when present - use for dedupe
 	Type        EventType
 	ProviderID  string
 	TxID        string
@@ -146,7 +146,7 @@ type Provider interface {
 	GetCharge(ctx context.Context, providerID string) (*PixCharge, error)
 
 	// StartFlow creates a charge and returns both the charge and the first
-	// FlowStatus the client should act on — for PIX that is ActionDisplayPix with
+	// FlowStatus the client should act on - for PIX that is ActionDisplayPix with
 	// the QR/copy-paste/expiry in ActionData. It is the state-machine entry point.
 	StartFlow(ctx context.Context, req PixChargeRequest) (*PixCharge, FlowStatus, error)
 

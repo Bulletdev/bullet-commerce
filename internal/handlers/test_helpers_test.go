@@ -409,13 +409,13 @@ func executeRequestAndAssert(t *testing.T, router *mux.Router, req *http.Request
 }
 
 // assertJSONContains checks that all fields in expectedJSON exist and match in actualJSON.
-// The actual response may contain additional fields — useful when models gain new fields.
+// The actual response may contain additional fields - useful when models gain new fields.
 func assertJSONContains(t *testing.T, expectedJSON, actualJSON string) {
 	t.Helper()
 
 	var expected, actual any
 	if err := json.Unmarshal([]byte(expectedJSON), &expected); err != nil {
-		// Not JSON — fall back to plain string contains.
+		// Not JSON - fall back to plain string contains.
 		require.Contains(t, actualJSON, expectedJSON)
 		return
 	}

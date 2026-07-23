@@ -9,7 +9,7 @@ import (
 // ChargeType distinguishes how a slice of the order total is settled. WHY a type (not a
 // discount): gift card and loyalty redemptions still MOVE money against a balance, so
 // they are modeled as their own charges alongside the "main" payment rather than as a
-// price reduction — the order total stays intact and is split across charges.
+// price reduction - the order total stays intact and is split across charges.
 type ChargeType string
 
 const (

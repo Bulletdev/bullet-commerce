@@ -12,4 +12,4 @@ ALTER TABLE orders ADD CONSTRAINT orders_payment_status_check
   CHECK (payment_status IN ('unpaid', 'pending_payment', 'paid', 'failed', 'refunded', 'partially_refunded'));
 
 -- NOTE: order_items.source_id already exists (added NOT NULL in 000020_sources),
--- so restock has the exact (variant, source) that Claim consumed — no column added here.
+-- so restock has the exact (variant, source) that Claim consumed - no column added here.

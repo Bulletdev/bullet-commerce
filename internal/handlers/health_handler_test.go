@@ -18,7 +18,7 @@ func (m *mockPinger) Ping(_ context.Context) error { return m.err }
 
 func TestLiveness(t *testing.T) {
 	h := &handlers.HealthHandler{}
-	// Use exported constructor indirectly — test the method via the interface
+	// Use exported constructor indirectly - test the method via the interface
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
 
@@ -39,7 +39,7 @@ func TestHealthHandler_Liveness(t *testing.T) {
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
 
-	// NewHealthHandler with nil pool — Liveness doesn't use db
+	// NewHealthHandler with nil pool - Liveness doesn't use db
 	h := handlers.NewHealthHandler(nil, handlers.HealthInfo{})
 	h.Liveness(rr, req)
 

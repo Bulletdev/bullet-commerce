@@ -6,7 +6,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// Attribute kinds. WHY they exist as constants: the selection UI branches on kind — 'color'
+// Attribute kinds. WHY they exist as constants: the selection UI branches on kind - 'color'
 // renders a swatch from AttributeValue.Hex, 'select' an ordered list, 'text' a free entry.
 const (
 	AttributeKindSelect = "select"
@@ -15,7 +15,7 @@ const (
 )
 
 // Attribute is a normalized VARIATION key (e.g. code='tamanho', code='cor'). Only the keys that
-// drive variant selection — those listed in products.variant_variation_attributes — are promoted
+// drive variant selection - those listed in products.variant_variation_attributes - are promoted
 // here; free-form product metadata stays in the ProductVariant.Attributes JSONB. Code is what
 // products.variant_variation_attributes references, turning a loose string into a validated key.
 type Attribute struct {

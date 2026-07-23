@@ -2,7 +2,7 @@ package money
 
 // fraction maps an ISO-4217 currency code to its number of minor-unit digits
 // (the "exponent"). WHY a table instead of assuming 2: currencies do not share a
-// scale — JPY has no minor unit (0), most fiat use 2, and Bahraini dinar uses 3.
+// scale - JPY has no minor unit (0), most fiat use 2, and Bahraini dinar uses 3.
 // Getting this wrong corrupts every formatted amount and every rounding split,
 // so precision is data-driven per currency rather than hard-coded to cents.
 var fraction = map[string]int{

@@ -12,7 +12,7 @@ import (
 
 // OrderReader is the narrow slice of internal/orders the status tool needs.
 // FindOrderByID returns any order by id; the OWNERSHIP CHECK is enforced in the
-// handler against the JWT-derived user id — the tool never trusts a user id from
+// handler against the JWT-derived user id - the tool never trusts a user id from
 // the model, and never leaks the existence of another user's order.
 type OrderReader interface {
 	FindOrderByID(ctx context.Context, orderID uuid.UUID) (*models.Order, []models.OrderItem, error)
@@ -67,7 +67,7 @@ func getMyOrderStatusTool(o OrderReader) Handler {
 
 // notFound is the deliberately non-error "no such order for you" answer. It is
 // is_error:false because it is a legitimate business result the model relays,
-// not a tool malfunction — and it never confirms the order exists for anyone.
+// not a tool malfunction - and it never confirms the order exists for anyone.
 func notFound() ai.ToolResult {
 	return ai.ToolResult{Content: `{"found":false,"message":"pedido não encontrado"}`}
 }

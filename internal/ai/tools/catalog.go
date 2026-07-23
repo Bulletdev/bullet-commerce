@@ -124,7 +124,7 @@ func checkVariantStockTool(v VariantReader) Handler {
 
 		variant, err := v.FindPublishedByID(ctx, id)
 		if err != nil {
-			// Includes variants.ErrVariantNotFound — an invalid reference OR a variant whose
+			// Includes variants.ErrVariantNotFound - an invalid reference OR a variant whose
 			// parent product is unpublished/deleted; both read as "not found" so no stock leaks.
 			return errResult("variante não encontrada")
 		}

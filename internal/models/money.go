@@ -2,7 +2,7 @@ package models
 
 // DefaultCurrency is the ISO-4217 code applied when a request omits currency.
 // A fork serving a non-BRL market changes this single constant (and the DEFAULT
-// in migration 000009) — no other code references a hard-coded currency.
+// in migration 000009) - no other code references a hard-coded currency.
 const DefaultCurrency = "BRL"
 
 // Money amounts are stored and transported as int64 minor units (cents).

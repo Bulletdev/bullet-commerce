@@ -2,10 +2,10 @@
 // with it, the stock invariant. Stock moves through three states so an order can
 // hold inventory before payment without overselling:
 //
-//	Reserve  — at order creation: moves qty into stock_reserved iff available >= qty.
-//	Claim    — at payment confirmation: converts the reservation into a real sale
+//	Reserve  - at order creation: moves qty into stock_reserved iff available >= qty.
+//	Claim    - at payment confirmation: converts the reservation into a real sale
 //	           (stock -= qty, stock_reserved -= qty).
-//	Release  — at cancellation/expiration: frees the reservation (stock_reserved -= qty)
+//	Release  - at cancellation/expiration: frees the reservation (stock_reserved -= qty)
 //	           without touching physical stock.
 //
 // Since migration 000020 stock is held PER (variant, source): the three operations take a
@@ -16,7 +16,7 @@
 // which sums live availability across every source.
 //
 // Reserve/Claim/Release each take a DBExecutor so they can run on the pool OR inside
-// the order's transaction — the atomic UPDATE ... WHERE available >= qty is what makes
+// the order's transaction - the atomic UPDATE ... WHERE available >= qty is what makes
 // concurrent checkouts safe (no read-modify-write race).
 //
 // Acceptance criteria (covered by pgxmock tests in repository_test.go):
@@ -79,7 +79,7 @@ type VariantRepository interface {
 	// (e.g. a refund/cancellation) without touching stock_reserved.
 	Restock(ctx context.Context, exec DBExecutor, variantID, sourceID uuid.UUID, qty int) error
 	// AvailableForVariant sums available stock (stock - stock_reserved) across every source
-	// for a variant — the value the display/read path shows now that stock is per-source.
+	// for a variant - the value the display/read path shows now that stock is per-source.
 	AvailableForVariant(ctx context.Context, variantID uuid.UUID) (int, error)
 	// SetStock overwrites physical stock for a (variant, source) as an ABSOLUTE value (not a
 	// delta), UPSERTing the variant_stock row Reserve/Claim/Release actually read. It does NOT
@@ -99,7 +99,7 @@ func NewPostgresVariantRepository(db *pgxpool.Pool) VariantRepository {
 
 func (r *postgresVariantRepository) Create(ctx context.Context, variant *models.ProductVariant) (*models.ProductVariant, error) {
 	// active / position / stock_policy are deliberately NOT in the INSERT column list: a zero-value
-	// bool (false) or empty stock_policy ("" — outside the CHECK) would fight the DB defaults, so we
+	// bool (false) or empty stock_policy ("" - outside the CHECK) would fight the DB defaults, so we
 	// let the defaults apply and RETURN them back into the struct. Available stays derived (read-only),
 	// so it is never written or returned here.
 	query := `
@@ -163,7 +163,7 @@ func (r *postgresVariantRepository) FindByID(ctx context.Context, id uuid.UUID) 
 // variantSelectColumns is unqualified, so joining products would make shared column names (id,
 // price_cents, currency, dims, timestamps…) ambiguous; a correlated EXISTS enforces the same
 // parent gate while letting the projection be reused verbatim. A miss (variant gone/inactive or
-// parent unpublished) reads as ErrVariantNotFound — the caller can't tell the reasons apart, which
+// parent unpublished) reads as ErrVariantNotFound - the caller can't tell the reasons apart, which
 // is the point (no leak of why).
 func (r *postgresVariantRepository) FindPublishedByID(ctx context.Context, id uuid.UUID) (*models.ProductVariant, error) {
 	query := `SELECT ` + variantSelectColumns + `
@@ -249,7 +249,7 @@ func (r *postgresVariantRepository) Release(ctx context.Context, exec DBExecutor
 
 func (r *postgresVariantRepository) SetStock(ctx context.Context, variantID, sourceID uuid.UUID, stock int) (int, int, error) {
 	// Absolute SET (not a delta), UPSERTing the variant_stock row for this (variant, source).
-	// stock_reserved is left untouched — an admin correction must never drop live reservations.
+	// stock_reserved is left untouched - an admin correction must never drop live reservations.
 	// The ON CONFLICT guard refuses to lower stock below what is already reserved at this source
 	// (that would drive available negative): a refused conflict updates nothing, so RETURNING
 	// yields no row and we surface StockBelowReservedError rather than a raw CHECK violation.
@@ -298,7 +298,7 @@ func (r *postgresVariantRepository) Claim(ctx context.Context, exec DBExecutor, 
 }
 
 // Restock is the inverse of Claim's physical decrement: it returns qty to the on-hand stock of a
-// (variant, source) row without touching stock_reserved — a refund/cancellation restores goods that
+// (variant, source) row without touching stock_reserved - a refund/cancellation restores goods that
 // have no live reservation to free. Like Claim/Release it takes a DBExecutor so it can run inside the
 // order transaction that owns the refund. Zero rows means the (variant, source) pair has no stock row.
 func (r *postgresVariantRepository) Restock(ctx context.Context, exec DBExecutor, variantID, sourceID uuid.UUID, qty int) error {

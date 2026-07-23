@@ -15,7 +15,7 @@ func WriteJSON(w http.ResponseWriter, status int, data any) {
 	json.NewEncoder(w).Encode(data) //nolint:errcheck
 }
 
-// RawJSON writes a pre-encoded JSON byte slice directly — used for cache hits to avoid re-encoding.
+// RawJSON writes a pre-encoded JSON byte slice directly - used for cache hits to avoid re-encoding.
 func RawJSON(w http.ResponseWriter, status int, data []byte) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)

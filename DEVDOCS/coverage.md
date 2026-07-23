@@ -1,4 +1,4 @@
-# Coverage Report — bullet-commerce
+# Coverage Report - bullet-commerce
 
 **Total atual: 71.4%** | Meta: ≥ 80% (produção) / 100% (completo)
 
@@ -27,7 +27,7 @@
 
 ## Gaps por categoria
 
-### 1. Handlers — 0% (nunca cobertos)
+### 1. Handlers - 0% (nunca cobertos)
 
 | Função | Arquivo | Como cobrir |
 |---|---|---|
@@ -38,7 +38,7 @@
 | `UpdateMe` | `user_handler.go:84` | Adicionar test com body `{"name":"...","email":"..."}` |
 | `LookupCep` | `shipping_handler.go:29` | Usar `httptest.NewServer` para mockar ViaCEP |
 
-### 2. Handlers — parcialmente cobertos (< 80%)
+### 2. Handlers - parcialmente cobertos (< 80%)
 
 | Função | Coverage | Paths faltando |
 |---|---|---|
@@ -51,17 +51,17 @@
 | `GetCategory` | 75.0% | DB error path |
 | `DeleteCategory` | 75.0% | DB error path |
 
-### 3. Repositórios — paths de erro faltando
+### 3. Repositórios - paths de erro faltando
 
 | Função | Coverage | Falta |
 |---|---|---|
-| `orders/CreateOrderFromCart` | 0% | Transação com `pgx.Batch` — `pgxmock` não suporta `SendBatch`; requer testcontainers ou refatoração |
+| `orders/CreateOrderFromCart` | 0% | Transação com `pgx.Batch` - `pgxmock` não suporta `SendBatch`; requer testcontainers ou refatoração |
 | `orders/FindOrderByID` | 70.6% | Error na query de items |
 | `addresses/SetDefault` | 80.0% | Erro no Exec de unset dentro da transação |
 | `cart/GetCartItems` | 91.7% | Erro no `rows.Scan` |
-| `config/Load` | 63.6% | Paths com `os.Exit(1)` — intestável sem mock de os.Exit |
+| `config/Load` | 63.6% | Paths com `os.Exit(1)` - intestável sem mock de os.Exit |
 
-### 4. Mock files — função pattern não coberta
+### 4. Mock files - função pattern não coberta
 
 Os mocks usam um pattern de `returnFn` (`func(ctx) *T`) para o primeiro return. Esse path não é exercitado nos testes de mock. Coverage ~81% em vez de 100%.
 
@@ -97,7 +97,7 @@ m.FindByID(ctx, id)
 ## Roadmap para 80%+ (próxima sprint)
 
 **1. Remover dead code** (30min)
-- Remover `UpdateItem` e `DeleteItem` de `cart/repository_mock.go` — eliminam 2 funções a 0%
+- Remover `UpdateItem` e `DeleteItem` de `cart/repository_mock.go` - eliminam 2 funções a 0%
 
 **2. Handler tests faltantes** (3h)
 - Adicionar `product_handler_test.go` para `GetFeaturedProducts`, `GetProductsByCategory`, `SearchProducts`, `UpdateStock`
@@ -114,25 +114,25 @@ srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.R
 }))
 // Injetar srv.URL via ENV VIACEP_URL em vez de hardcode
 ```
-Requer que `LookupCep` leia a URL base de ENV — hoje está hardcoded.
+Requer que `LookupCep` leia a URL base de ENV - hoje está hardcoded.
 
 **4. Mock returnFn paths** (1h)
 - Adicionar casos com função como return value em cada `TestMock*_AllMethods`
 
 **5. Remover `os.Exit` do `config.Load`** (30min)
-- Extrair para `loadOrFatal(exitFn func(int))` — permite injetar um mock de exit
+- Extrair para `loadOrFatal(exitFn func(int))` - permite injetar um mock de exit
 
 ---
 
 ## Roadmap para 100% (requer infraestrutura)
 
-**Testcontainers** — adicionar `github.com/testcontainers/testcontainers-go`
+**Testcontainers** - adicionar `github.com/testcontainers/testcontainers-go`
 
 Cobre: `database/NewConnection`, `orders/CreateOrderFromCart`, todos os repositórios com paths de erro de banco real.
 
 Custo: ~1 semana de setup + 30-60s por test run.
 
-**Build tags para exclusão** — `cmd/main` e `cmd/runOrderCleanup` são convencionalmente excluídos de coverage em Go. Adicionar um Makefile target:
+**Build tags para exclusão** - `cmd/main` e `cmd/runOrderCleanup` são convencionalmente excluídos de coverage em Go. Adicionar um Makefile target:
 
 ```makefile
 coverage:

@@ -2,7 +2,7 @@
 -- variant selection, listed in products.variant_variation_attributes) get promoted into
 -- normalized tables so they can be faceted, validated, ordered and given a color swatch.
 -- The free-form product_variants.attributes JSONB STAYS as the source of truth for
--- everything else (material, care instructions, ...) — it is never emptied here; these
+-- everything else (material, care instructions, ...) - it is never emptied here; these
 -- tables are a queryable projection of its variation subset, not a replacement.
 
 CREATE TABLE IF NOT EXISTS attribute (
@@ -47,7 +47,7 @@ CREATE INDEX IF NOT EXISTS idx_variant_attribute_value_value_id
 
 -- 1) One attribute per distinct variation code across all products. A code containing 'cor'
 --    or 'color' becomes kind='color' (swatch), everything else 'select'. label defaults to the
---    code — a human label is left for the admin to refine later.
+--    code - a human label is left for the admin to refine later.
 INSERT INTO attribute (code, label, kind)
 SELECT DISTINCT
     code,
@@ -62,7 +62,7 @@ ON CONFLICT (code) DO NOTHING;
 -- 2) One attribute_value per distinct (variation key, value) seen on a non-deleted variant.
 --    position is assigned by order of first appearance (earliest-created variant carrying the
 --    value comes first), so display order reflects the catalog's own ordering rather than
---    alphabetical. hex stays NULL — not inferred from the value text.
+--    alphabetical. hex stays NULL - not inferred from the value text.
 WITH variant_attrs AS (
     SELECT v.id AS variant_id, v.created_at, kv.key AS attr_code, kv.value AS attr_value
     FROM product_variants v

@@ -88,7 +88,7 @@ func TestMediaHandler_UploadURL_Active(t *testing.T) {
 	assert.Contains(t, rr.Body.String(), "photo.jpg")
 }
 
-// With storage nil (not configured), the presign endpoint answers 501 — the URL-reference
+// With storage nil (not configured), the presign endpoint answers 501 - the URL-reference
 // flow keeps working, so this is "feature disabled", not a client error.
 func TestMediaHandler_UploadURL_Disabled(t *testing.T) {
 	repo := new(media.MockMediaRepository)

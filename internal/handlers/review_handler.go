@@ -10,7 +10,7 @@ package handlers
 // Constructor:  NewReviewHandler(reviewRepo reviews.ReviewRepository) *ReviewHandler
 //
 // The handler recomputes the product's rating aggregate (products.rating_avg / rating_count)
-// after every change to the approved set — i.e. on CreateReview and on ModerateReview.
+// after every change to the approved set - i.e. on CreateReview and on ModerateReview.
 
 import (
 	"bullet-commerce/internal/reviews"

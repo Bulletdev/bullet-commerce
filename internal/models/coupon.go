@@ -15,7 +15,7 @@ const (
 )
 
 // Coupon is the RULE behind a cart-level promotion. WHY the pointers on MaxUses/ExpiresAt:
-// both are optional constraints — a nil MaxUses means unlimited redemptions and a nil
+// both are optional constraints - a nil MaxUses means unlimited redemptions and a nil
 // ExpiresAt means the coupon never expires, which a zero value could not distinguish.
 type Coupon struct {
 	ID   uuid.UUID `json:"id" db:"id"`
