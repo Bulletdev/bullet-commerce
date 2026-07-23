@@ -1,121 +1,81 @@
 package products
 
 import (
-	"bullet-cloud-api/internal/models"
+	"bullet-commerce/internal/models"
 	"context"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/mock"
 )
 
-// MockProductRepository is a mock type for the ProductRepository interface
 type MockProductRepository struct {
 	mock.Mock
 }
 
-// Create provides a mock function with given fields: ctx, product
-func (_m *MockProductRepository) Create(ctx context.Context, product *models.Product) (*models.Product, error) {
-	ret := _m.Called(ctx, product)
-
-	var r0 *models.Product
-	if rf, ok := ret.Get(0).(func(context.Context, *models.Product) *models.Product); ok {
-		r0 = rf(ctx, product)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*models.Product)
-		}
+func (m *MockProductRepository) Create(ctx context.Context, product *models.Product) (*models.Product, error) {
+	ret := m.Called(ctx, product)
+	if ret.Get(0) == nil {
+		return nil, ret.Error(1)
 	}
-
-	var r1 error
-	if rf, ok := ret.Get(1).(func(context.Context, *models.Product) error); ok {
-		r1 = rf(ctx, product)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
+	return ret.Get(0).(*models.Product), ret.Error(1)
 }
 
-// FindByID provides a mock function with given fields: ctx, id
-func (_m *MockProductRepository) FindByID(ctx context.Context, id uuid.UUID) (*models.Product, error) {
-	ret := _m.Called(ctx, id)
-
-	var r0 *models.Product
-	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID) *models.Product); ok {
-		r0 = rf(ctx, id)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*models.Product)
-		}
+func (m *MockProductRepository) FindByID(ctx context.Context, id uuid.UUID) (*models.Product, error) {
+	ret := m.Called(ctx, id)
+	if ret.Get(0) == nil {
+		return nil, ret.Error(1)
 	}
-
-	var r1 error
-	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID) error); ok {
-		r1 = rf(ctx, id)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
+	return ret.Get(0).(*models.Product), ret.Error(1)
 }
 
-// FindAll provides a mock function with given fields: ctx
-func (_m *MockProductRepository) FindAll(ctx context.Context) ([]models.Product, error) {
-	ret := _m.Called(ctx)
-
-	var r0 []models.Product
-	if rf, ok := ret.Get(0).(func(context.Context) []models.Product); ok {
-		r0 = rf(ctx)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]models.Product)
-		}
+func (m *MockProductRepository) FindByIDAdmin(ctx context.Context, id uuid.UUID) (*models.Product, error) {
+	ret := m.Called(ctx, id)
+	if ret.Get(0) == nil {
+		return nil, ret.Error(1)
 	}
-
-	var r1 error
-	if rf, ok := ret.Get(1).(func(context.Context) error); ok {
-		r1 = rf(ctx)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
+	return ret.Get(0).(*models.Product), ret.Error(1)
 }
 
-// Search provides a mock function with given fields: ctx, query
-func (_m *MockProductRepository) Search(ctx context.Context, query string) ([]models.Product, error) {
-	ret := _m.Called(ctx, query)
-
-	var r0 []models.Product
-	if rf, ok := ret.Get(0).(func(context.Context, string) []models.Product); ok {
-		r0 = rf(ctx, query)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]models.Product)
-		}
+func (m *MockProductRepository) FindAll(ctx context.Context, limit, offset int) ([]models.Product, error) {
+	ret := m.Called(ctx, limit, offset)
+	if ret.Get(0) == nil {
+		return nil, ret.Error(1)
 	}
-
-	var r1 error
-	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
-		r1 = rf(ctx, query)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
+	return ret.Get(0).([]models.Product), ret.Error(1)
 }
 
-// Update provides a mock function with given fields: ctx, id, product
-func (_m *MockProductRepository) Update(ctx context.Context, id uuid.UUID, product *models.Product) (*models.Product, error) {
-	ret := _m.Called(ctx, id, product)
+func (m *MockProductRepository) FindFeatured(ctx context.Context) ([]models.Product, error) {
+	ret := m.Called(ctx)
+	if ret.Get(0) == nil {
+		return nil, ret.Error(1)
+	}
+	return ret.Get(0).([]models.Product), ret.Error(1)
+}
+
+func (m *MockProductRepository) FindByCategoryID(ctx context.Context, categoryID uuid.UUID, limit, offset int) ([]models.Product, error) {
+	ret := m.Called(ctx, categoryID, limit, offset)
+	if ret.Get(0) == nil {
+		return nil, ret.Error(1)
+	}
+	return ret.Get(0).([]models.Product), ret.Error(1)
+}
+
+func (m *MockProductRepository) Search(ctx context.Context, query string, limit, offset int) ([]models.Product, error) {
+	ret := m.Called(ctx, query, limit, offset)
+	if ret.Get(0) == nil {
+		return nil, ret.Error(1)
+	}
+	return ret.Get(0).([]models.Product), ret.Error(1)
+}
+
+func (m *MockProductRepository) Update(ctx context.Context, id uuid.UUID, product *models.Product) (*models.Product, error) {
+	ret := m.Called(ctx, id, product)
 
 	var r0 *models.Product
 	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, *models.Product) *models.Product); ok {
 		r0 = rf(ctx, id, product)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*models.Product)
-		}
+	} else if ret.Get(0) != nil {
+		r0 = ret.Get(0).(*models.Product)
 	}
 
 	var r1 error
@@ -128,16 +88,22 @@ func (_m *MockProductRepository) Update(ctx context.Context, id uuid.UUID, produ
 	return r0, r1
 }
 
-// Delete provides a mock function with given fields: ctx, id
-func (_m *MockProductRepository) Delete(ctx context.Context, id uuid.UUID) error {
-	ret := _m.Called(ctx, id)
+func (m *MockProductRepository) Delete(ctx context.Context, id uuid.UUID) error {
+	return m.Called(ctx, id).Error(0)
+}
 
-	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID) error); ok {
-		r0 = rf(ctx, id)
-	} else {
-		r0 = ret.Error(0)
+func (m *MockProductRepository) UpdateStock(ctx context.Context, id uuid.UUID, stock int) error {
+	return m.Called(ctx, id, stock).Error(0)
+}
+
+func (m *MockProductRepository) SetCategories(ctx context.Context, productID uuid.UUID, categoryIDs []uuid.UUID) error {
+	return m.Called(ctx, productID, categoryIDs).Error(0)
+}
+
+func (m *MockProductRepository) FindCategoryIDs(ctx context.Context, productID uuid.UUID) ([]uuid.UUID, error) {
+	ret := m.Called(ctx, productID)
+	if ret.Get(0) == nil {
+		return nil, ret.Error(1)
 	}
-
-	return r0
+	return ret.Get(0).([]uuid.UUID), ret.Error(1)
 }

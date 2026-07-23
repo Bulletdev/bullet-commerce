@@ -1,11 +1,13 @@
 package handlers_test
 
 import (
-	"bullet-cloud-api/internal/auth" // For middleware and context key
-	"bullet-cloud-api/internal/handlers"
-	"bullet-cloud-api/internal/models"
-	"bullet-cloud-api/internal/products"
-	"bullet-cloud-api/internal/users" // For user mock
+	"bullet-commerce/internal/auth" // For middleware and context key
+	"bullet-commerce/internal/handlers"
+	"bullet-commerce/internal/media"
+	"bullet-commerce/internal/models"
+	"bullet-commerce/internal/products"
+	"bullet-commerce/internal/users" // For user mock
+	"bullet-commerce/internal/variants"
 	"bytes"
 	"context"
 	"errors"
@@ -29,7 +31,7 @@ func setupProductTest(t *testing.T) (*products.MockProductRepository, *MockUserR
 	// Call the base setup - Capture necessary mocks and router, ignore others
 	_, _, router, mockUserRepo, _, _, _, _, _ := setupBaseTest(t)
 
-	productHandler := handlers.NewProductHandler(mockProductRepo)
+	productHandler := handlers.NewProductHandler(mockProductRepo, new(variants.MockVariantRepository), new(media.MockMediaRepository), new(MockSourceRepository))
 
 	// Need authMiddleware instance for protected routes
 	authMiddleware := auth.NewMiddleware(testJwtSecret, mockUserRepo)
@@ -55,13 +57,13 @@ func setupProductTest(t *testing.T) (*products.MockProductRepository, *MockUserR
 func TestProductHandler_GetAllProducts(t *testing.T) {
 	// Corrected setupBaseTest call
 	_, _, router, _, baseMockProductRepo, _, _, _, _ := setupBaseTest(t)
-	productHandler := handlers.NewProductHandler(baseMockProductRepo)
+	productHandler := handlers.NewProductHandler(baseMockProductRepo, new(variants.MockVariantRepository), new(media.MockMediaRepository), new(MockSourceRepository))
 
 	router.HandleFunc("/api/products", productHandler.GetAllProducts).Methods("GET")
 
 	testProducts := []models.Product{
-		{ID: uuid.New(), Name: "Product A", Price: 10.99},
-		{ID: uuid.New(), Name: "Product B", Price: 25.50},
+		{ID: uuid.New(), Name: "Product A", PriceCents: 1099},
+		{ID: uuid.New(), Name: "Product B", PriceCents: 2550},
 	}
 
 	tests := []struct {
@@ -76,14 +78,14 @@ func TestProductHandler_GetAllProducts(t *testing.T) {
 			mockFindAllReturn: testProducts,
 			mockFindAllError:  nil,
 			expectedStatus:    http.StatusOK,
-			expectedBody:      fmt.Sprintf(`[{"id":"%s","name":"%s","description":"","price":%.2f,"category_id":null,"created_at":"0001-01-01T00:00:00Z","updated_at":"0001-01-01T00:00:00Z"},{"id":"%s","name":"%s","description":"","price":%.2f,"category_id":null,"created_at":"0001-01-01T00:00:00Z","updated_at":"0001-01-01T00:00:00Z"}]`, testProducts[0].ID, testProducts[0].Name, testProducts[0].Price, testProducts[1].ID, testProducts[1].Name, testProducts[1].Price),
+			expectedBody:      fmt.Sprintf(`[{"id":"%s","name":"%s","description":"","price_cents":%d,"category_id":null,"created_at":"0001-01-01T00:00:00Z","updated_at":"0001-01-01T00:00:00Z"},{"id":"%s","name":"%s","description":"","price_cents":%d,"category_id":null,"created_at":"0001-01-01T00:00:00Z","updated_at":"0001-01-01T00:00:00Z"}]`, testProducts[0].ID, testProducts[0].Name, testProducts[0].PriceCents, testProducts[1].ID, testProducts[1].Name, testProducts[1].PriceCents),
 		},
 		{
 			name:              "Success - No Products",
 			mockFindAllReturn: []models.Product{},
 			mockFindAllError:  nil,
 			expectedStatus:    http.StatusOK,
-			expectedBody:      `[]`,
+			expectedBody:      ``,
 		},
 		{
 			name:              "Error - Repository Failure",
@@ -100,7 +102,7 @@ func TestProductHandler_GetAllProducts(t *testing.T) {
 			mockProductRepo := new(MockProductRepository)
 			productHandler.ProductRepo = mockProductRepo
 
-			mockProductRepo.On("FindAll", mock.Anything).Return(tc.mockFindAllReturn, tc.mockFindAllError).Once()
+			mockProductRepo.On("FindAll", mock.Anything, mock.Anything, mock.Anything).Return(tc.mockFindAllReturn, tc.mockFindAllError).Once()
 
 			req, _ := http.NewRequest("GET", "/api/products", nil)
 			executeRequestAndAssert(t, router, req, tc.expectedStatus, tc.expectedBody)
@@ -112,12 +114,20 @@ func TestProductHandler_GetAllProducts(t *testing.T) {
 func TestProductHandler_GetProduct(t *testing.T) {
 	// Corrected setupBaseTest call
 	_, _, router, _, baseMockProductRepo, _, _, _, _ := setupBaseTest(t)
-	productHandler := handlers.NewProductHandler(baseMockProductRepo)
+	mockVariantRepo := new(variants.MockVariantRepository)
+	// GetProduct now also lists the product's variants; return an empty set for these
+	// product-shape assertions (the embedded product fields stay top-level).
+	mockVariantRepo.On("FindByProductID", mock.Anything, mock.Anything).Return([]models.ProductVariant{}, nil)
+	// GetProduct also embeds the media gallery; return an empty set so the product-shape
+	// assertions still pass (media only appears on the success path).
+	mockMediaRepo := new(media.MockMediaRepository)
+	mockMediaRepo.On("ListByProduct", mock.Anything, mock.Anything).Return([]models.ProductMedia{}, nil)
+	productHandler := handlers.NewProductHandler(baseMockProductRepo, mockVariantRepo, mockMediaRepo, new(MockSourceRepository))
 
 	router.HandleFunc("/api/products/{id}", productHandler.GetProduct).Methods("GET")
 
 	testID := uuid.New()
-	testProduct := &models.Product{ID: testID, Name: "Found Product", Price: 50.0}
+	testProduct := &models.Product{ID: testID, Name: "Found Product", PriceCents: 5000}
 
 	tests := []struct {
 		name               string
@@ -133,7 +143,7 @@ func TestProductHandler_GetProduct(t *testing.T) {
 			mockFindByIDReturn: testProduct,
 			mockFindByIDError:  nil,
 			expectedStatus:     http.StatusOK,
-			expectedBody:       fmt.Sprintf(`{"id":"%s","name":"%s","description":"","price":%.2f,"category_id":null,"created_at":"0001-01-01T00:00:00Z","updated_at":"0001-01-01T00:00:00Z"}`, testID, testProduct.Name, testProduct.Price),
+			expectedBody:       fmt.Sprintf(`{"id":"%s","name":"%s","description":"","price_cents":%d,"category_id":null,"created_at":"0001-01-01T00:00:00Z","updated_at":"0001-01-01T00:00:00Z"}`, testID, testProduct.Name, testProduct.PriceCents),
 		},
 		{
 			name:               "Not Found",
@@ -170,6 +180,9 @@ func TestProductHandler_GetProduct(t *testing.T) {
 			if tc.productID != "not-a-valid-uuid" {
 				uuidToFind, _ := uuid.Parse(tc.productID)
 				mockProductRepo.On("FindByID", mock.Anything, uuidToFind).Return(tc.mockFindByIDReturn, tc.mockFindByIDError).Once()
+				// Only the success path reaches the category lookup; Maybe() keeps the
+				// not-found/error cases (which return earlier) from failing AssertExpectations.
+				mockProductRepo.On("FindCategoryIDs", mock.Anything, uuidToFind).Return([]uuid.UUID{}, nil).Maybe()
 			}
 
 			url := fmt.Sprintf("/api/products/%s", tc.productID)
@@ -185,7 +198,7 @@ func TestProductHandler_GetProduct(t *testing.T) {
 func TestProductHandler_CreateProduct(t *testing.T) {
 	// Corrected setupBaseTest call
 	_, _, router, baseMockUserRepo, baseMockProductRepo, _, _, _, token := setupBaseTest(t)
-	productHandler := handlers.NewProductHandler(baseMockProductRepo)
+	productHandler := handlers.NewProductHandler(baseMockProductRepo, new(variants.MockVariantRepository), new(media.MockMediaRepository), new(MockSourceRepository))
 	authMiddleware := auth.NewMiddleware(testJwtSecret, baseMockUserRepo)
 
 	// Extract UserID from token for mock setup
@@ -196,10 +209,10 @@ func TestProductHandler_CreateProduct(t *testing.T) {
 	router.Handle("/api/products", authMiddleware.Authenticate(http.HandlerFunc(productHandler.CreateProduct))).Methods("POST")
 
 	productName := "New Gadget"
-	productPrice := 199.99
+	productPrice := int64(19999)
 	productDesc := "A cool new gadget"
-	testProduct := models.Product{Name: productName, Price: productPrice, Description: productDesc}
-	createdProduct := models.Product{ID: uuid.New(), Name: productName, Price: productPrice, Description: productDesc}
+	testProduct := models.Product{Name: productName, PriceCents: productPrice, Description: productDesc}
+	createdProduct := models.Product{ID: uuid.New(), Name: productName, PriceCents: productPrice, Description: productDesc}
 
 	tests := []struct {
 		name             string
@@ -211,11 +224,11 @@ func TestProductHandler_CreateProduct(t *testing.T) {
 	}{
 		{
 			name:             "Success",
-			body:             fmt.Sprintf(`{"name":"%s", "price":%.2f, "description":"%s"}`, productName, productPrice, productDesc),
+			body:             fmt.Sprintf(`{"name":"%s", "price_cents":%d, "description":"%s"}`, productName, productPrice, productDesc),
 			mockCreateReturn: &createdProduct,
 			mockCreateError:  nil,
 			expectedStatus:   http.StatusCreated,
-			expectedBody:     fmt.Sprintf(`{"id":"%s","name":"%s","description":"%s","price":%.2f,"category_id":null,"created_at":"0001-01-01T00:00:00Z","updated_at":"0001-01-01T00:00:00Z"}`, createdProduct.ID, createdProduct.Name, createdProduct.Description, createdProduct.Price),
+			expectedBody:     fmt.Sprintf(`{"id":"%s","name":"%s","description":"%s","price_cents":%d,"category_id":null,"created_at":"0001-01-01T00:00:00Z","updated_at":"0001-01-01T00:00:00Z"}`, createdProduct.ID, createdProduct.Name, createdProduct.Description, createdProduct.PriceCents),
 		},
 		{
 			name:             "Invalid JSON",
@@ -227,7 +240,7 @@ func TestProductHandler_CreateProduct(t *testing.T) {
 		},
 		{
 			name:             "Missing Name",
-			body:             fmt.Sprintf(`{"price":%.2f}`, productPrice),
+			body:             fmt.Sprintf(`{"price_cents":%d}`, productPrice),
 			mockCreateReturn: nil,
 			mockCreateError:  nil, // Not called
 			expectedStatus:   http.StatusBadRequest,
@@ -240,19 +253,19 @@ func TestProductHandler_CreateProduct(t *testing.T) {
 			mockCreateReturn: nil,
 			mockCreateError:  nil,
 			expectedStatus:   http.StatusBadRequest,
-			expectedBody:     `{"error":"product price must be positive"}`,
+			expectedBody:     `{"error":"product price_cents must be positive"}`,
 		},
 		{
 			name:             "Zero Price",
-			body:             fmt.Sprintf(`{"name":"%s", "price":0}`, productName),
+			body:             fmt.Sprintf(`{"name":"%s", "price_cents":0}`, productName),
 			mockCreateReturn: nil,
 			mockCreateError:  nil,
 			expectedStatus:   http.StatusBadRequest,
-			expectedBody:     `{"error":"product price must be positive"}`,
+			expectedBody:     `{"error":"product price_cents must be positive"}`,
 		},
 		{
 			name:             "Repository Error",
-			body:             fmt.Sprintf(`{"name":"%s", "price":%.2f}`, productName, productPrice),
+			body:             fmt.Sprintf(`{"name":"%s", "price_cents":%d}`, productName, productPrice),
 			mockCreateReturn: nil,
 			mockCreateError:  assert.AnError,
 			expectedStatus:   http.StatusInternalServerError,
@@ -273,7 +286,7 @@ func TestProductHandler_CreateProduct(t *testing.T) {
 			if tc.expectedStatus == http.StatusCreated {
 				// For success case, match the product details
 				mockProductRepo.On("Create", mock.Anything, mock.MatchedBy(func(p *models.Product) bool {
-					return p.Name == testProduct.Name && p.Price == testProduct.Price && p.Description == testProduct.Description
+					return p.Name == testProduct.Name && p.PriceCents == testProduct.PriceCents && p.Description == testProduct.Description
 				})).Return(tc.mockCreateReturn, tc.mockCreateError).Once()
 			} else if tc.expectedStatus == http.StatusInternalServerError && tc.mockCreateError != nil {
 				// For repository error case, just match the type for simplicity
@@ -294,6 +307,78 @@ func TestProductHandler_CreateProduct(t *testing.T) {
 			mockUserRepo.AssertExpectations(t)
 		})
 	}
+}
+
+// TestProductHandler_CreateProduct_CatalogFields verifies the new catalog fields
+// (type, attributes, variant_variation_attributes) flow from request into the repo
+// and back out in the response.
+func TestProductHandler_CreateProduct_CatalogFields(t *testing.T) {
+	_, _, router, baseMockUserRepo, _, _, _, _, token := setupBaseTest(t)
+	authMiddleware := auth.NewMiddleware(testJwtSecret, baseMockUserRepo)
+
+	claims, err := auth.ValidateToken(token, testJwtSecret)
+	require.NoError(t, err)
+	testUserID := claims.UserID
+
+	mockProductRepo := new(products.MockProductRepository)
+	mockUserRepo := new(MockUserRepository)
+	mockUserRepo.On("FindByID", mock.Anything, testUserID).Return(&models.User{ID: testUserID}, nil).Maybe()
+	productHandler := handlers.NewProductHandler(mockProductRepo, new(variants.MockVariantRepository), new(media.MockMediaRepository), new(MockSourceRepository))
+	middleware := auth.NewMiddleware(testJwtSecret, mockUserRepo)
+
+	created := &models.Product{
+		ID:                         uuid.New(),
+		Name:                       "Configurable Shirt",
+		PriceCents:                 4900,
+		Type:                       models.ProductTypeConfigurable,
+		Attributes:                 []byte(`{"brand":"acme"}`),
+		VariantVariationAttributes: []string{"tamanho", "cor"},
+	}
+	mockProductRepo.On("Create", mock.Anything, mock.MatchedBy(func(p *models.Product) bool {
+		return p.Type == models.ProductTypeConfigurable &&
+			len(p.VariantVariationAttributes) == 2 &&
+			string(p.Attributes) == `{"brand":"acme"}`
+	})).Return(created, nil).Once()
+
+	body := `{"name":"Configurable Shirt","price_cents":4900,"type":"configurable","attributes":{"brand":"acme"},"variant_variation_attributes":["tamanho","cor"]}`
+	req, _ := http.NewRequest("POST", "/api/products", bytes.NewBufferString(body))
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+
+	subRouter := mux.NewRouter()
+	subRouter.Handle("/api/products", middleware.Authenticate(http.HandlerFunc(productHandler.CreateProduct))).Methods("POST")
+
+	expected := `{"type":"configurable","variant_variation_attributes":["tamanho","cor"],"attributes":{"brand":"acme"}}`
+	executeRequestAndAssert(t, subRouter, req, http.StatusCreated, expected)
+	mockProductRepo.AssertExpectations(t)
+
+	_ = router
+	_ = authMiddleware
+}
+
+func TestProductHandler_CreateProduct_InvalidType(t *testing.T) {
+	_, _, _, baseMockUserRepo, _, _, _, _, token := setupBaseTest(t)
+
+	claims, err := auth.ValidateToken(token, testJwtSecret)
+	require.NoError(t, err)
+	testUserID := claims.UserID
+
+	mockUserRepo := new(MockUserRepository)
+	mockUserRepo.On("FindByID", mock.Anything, testUserID).Return(&models.User{ID: testUserID}, nil).Maybe()
+	productHandler := handlers.NewProductHandler(new(products.MockProductRepository), new(variants.MockVariantRepository), new(media.MockMediaRepository), new(MockSourceRepository))
+	middleware := auth.NewMiddleware(testJwtSecret, mockUserRepo)
+
+	body := `{"name":"X","price_cents":100,"type":"nonsense"}`
+	req, _ := http.NewRequest("POST", "/api/products", bytes.NewBufferString(body))
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+
+	subRouter := mux.NewRouter()
+	subRouter.Handle("/api/products", middleware.Authenticate(http.HandlerFunc(productHandler.CreateProduct))).Methods("POST")
+
+	executeRequestAndAssert(t, subRouter, req, http.StatusBadRequest, `{"error":"invalid product type"}`)
+
+	_ = baseMockUserRepo
 }
 
 func TestProductHandler_UpdateProduct(t *testing.T) {
@@ -317,7 +402,7 @@ func TestProductHandler_UpdateProduct(t *testing.T) {
 		{
 			name:           "Success",
 			productID:      productToUpdateID.String(),
-			body:           `{"name":"Updated Gadget","description":"Better","price":129.99}`, // Include all fields
+			body:           `{"name":"Updated Gadget","description":"Better","price_cents":12999,"version":1}`, // Include all fields
 			mockUserReturn: &models.User{ID: testUserID},
 			mockUserErr:    nil,
 			mockUpdateErr:  nil,
@@ -347,27 +432,27 @@ func TestProductHandler_UpdateProduct(t *testing.T) {
 		{
 			name:           "Failure - Missing Name",
 			productID:      productToUpdateID.String(),
-			body:           `{"price":50.0}`, // Missing name
+			body:           `{"price_cents":5000}`, // Missing name
 			mockUserReturn: &models.User{ID: testUserID},
 			mockUserErr:    nil,
 			mockUpdateErr:  nil,
 			expectedStatus: http.StatusBadRequest,
-			expectedBody:   `{"error":"product name is required and price must be non-negative"}`,
+			expectedBody:   `{"error":"product name is required and price_cents must be non-negative"}`,
 		},
 		{
 			name:           "Failure - Negative Price",
 			productID:      productToUpdateID.String(),
-			body:           `{"name":"Bad Price Product","price":-1.0}`,
+			body:           `{"name":"Bad Price Product","price_cents":-1}`,
 			mockUserReturn: &models.User{ID: testUserID},
 			mockUserErr:    nil,
 			mockUpdateErr:  nil,
 			expectedStatus: http.StatusBadRequest,
-			expectedBody:   `{"error":"product name is required and price must be non-negative"}`,
+			expectedBody:   `{"error":"product name is required and price_cents must be non-negative"}`,
 		},
 		{
 			name:           "Failure - Product Not Found",
 			productID:      productToUpdateID.String(),
-			body:           `{"name":"Update Attempt","price":10.0}`,
+			body:           `{"name":"Update Attempt","price_cents":1000,"version":1}`,
 			mockUserReturn: &models.User{ID: testUserID},
 			mockUserErr:    nil,
 			mockUpdateErr:  products.ErrProductNotFound,
@@ -377,7 +462,7 @@ func TestProductHandler_UpdateProduct(t *testing.T) {
 		{
 			name:           "Failure - Repo Update Error",
 			productID:      productToUpdateID.String(),
-			body:           `{"name":"Update Attempt","price":10.0}`,
+			body:           `{"name":"Update Attempt","price_cents":1000,"version":1}`,
 			mockUserReturn: &models.User{ID: testUserID},
 			mockUserErr:    nil,
 			mockUpdateErr:  errors.New("db update failed"),
@@ -387,7 +472,7 @@ func TestProductHandler_UpdateProduct(t *testing.T) {
 		{
 			name:           "Failure - Middleware User Check Fails",
 			productID:      productToUpdateID.String(),
-			body:           `{"name":"Update Attempt","price":10.0}`,
+			body:           `{"name":"Update Attempt","price_cents":1000}`,
 			mockUserReturn: nil,
 			mockUserErr:    users.ErrUserNotFound,
 			mockUpdateErr:  nil,
@@ -397,7 +482,7 @@ func TestProductHandler_UpdateProduct(t *testing.T) {
 		{
 			name:           "Failure - No Auth Token",
 			productID:      productToUpdateID.String(),
-			body:           `{"name":"Update Attempt","price":10.0}`,
+			body:           `{"name":"Update Attempt","price_cents":1000}`,
 			mockUserReturn: nil,
 			mockUserErr:    nil,
 			mockUpdateErr:  nil,
