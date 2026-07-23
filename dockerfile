@@ -1,11 +1,8 @@
-FROM golang:1.24-rc-alpine3.21
+FROM golang:1.23-alpine
 
 WORKDIR /app
 COPY . .
-RUN go mod download
-RUN go build -o main cmd/main.go
+RUN go build -mod=vendor -o main cmd/main.go
 
 EXPOSE 4444
 CMD ["./main"]
- 
- 

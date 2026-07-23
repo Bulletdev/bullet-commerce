@@ -60,7 +60,7 @@ Response ← JSON ← Processing ← Query Result ← PostgreSQL
 
 ##  Deployment
 
-- **Platform**: Render/Heroku
+- **Platform**: Docker (VPS/PaaS)
 - **Database**: Supabase (PostgreSQL)
 - **Port**: Auto-detected (4445+ range)
 - **Health Check**: `GET /api/health`

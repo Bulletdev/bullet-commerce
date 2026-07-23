@@ -1,14 +1,15 @@
 package main
 
-import "testing"
+import (
+	"log/slog"
+	"testing"
 
-func Test_main(t *testing.T) {
-	var tests []struct {
-		name string
+	"github.com/stretchr/testify/assert"
+)
+
+func TestSetupLogger_AllLevels(t *testing.T) {
+	for _, level := range []string{"debug", "warn", "error", "info", "unknown"} {
+		setupLogger(level)
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			main()
-		})
-	}
+	assert.NotNil(t, slog.Default())
 }

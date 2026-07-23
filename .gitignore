@@ -37,3 +37,7 @@ go.work
 
 # Swagger codegen output
 /output/.swagger-codegen/
+
+
+#Ignore cursor AI rules
+.cursor/rules/codacy.mdc

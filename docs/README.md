@@ -44,7 +44,7 @@ Este projeto segue os princípios de **Clean Architecture** com as seguintes car
 - **Backend**: Go 1.23+ com Gorilla Mux
 - **Database**: PostgreSQL via Supabase
 - **Autenticação**: JWT + bcrypt
-- **Deploy**: Render/Heroku
+- **Deploy**: Docker (VPS/PaaS)
 - **Testes**: Go testing + testify
 
 ##  Para Desenvolvedores

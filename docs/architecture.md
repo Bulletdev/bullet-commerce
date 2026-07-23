@@ -13,7 +13,7 @@ graph TB
     end
 
     subgraph "Load Balancer/Reverse Proxy"
-        LB[Load Balancer<br/>Nginx/Render]
+        LB[Load Balancer<br/>Nginx]
     end
 
     subgraph "Go Cart API Application"
@@ -395,7 +395,7 @@ graph TD
 
 ### External Services
 - **PostgreSQL**: Banco de dados principal (via Supabase)
-- **Render/Heroku**: Hospedagem da aplicação
+- **Docker (VPS/PaaS)**: Hospedagem da aplicação
 
 ### Environment Variables
 - `DATABASE_URL`: Connection string do PostgreSQL

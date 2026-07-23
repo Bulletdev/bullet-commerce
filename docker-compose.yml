@@ -6,16 +6,10 @@ services:
     environment:
       - DATABASE_URL=postgres://postgres:password@db:5432/bulletcloud?sslmode=disable
       - PORT=4444
-      - ENV=development
-      - JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
-      - JWT_ACCESS_EXPIRY=15m
-      - JWT_REFRESH_EXPIRY=168h
-      - CORS_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:3001,http://localhost:3002
-      - BCRYPT_COST=12
-      - MAX_LOGIN_ATTEMPTS=5
-      - LOCKOUT_DURATION=30m
+      - ALLOWED_ORIGINS=http://localhost:8880,http://localhost:8888,http://localhost:5173
       - LOG_LEVEL=info
-      - LOG_FORMAT=json
+      - JWT_SECRET=change-me-in-production-min-32-chars
+      - JWT_TTL=24h
     depends_on:
       db:
         condition: service_healthy
@@ -23,7 +17,7 @@ services:
       - app-network
 
   db:
-    image: postgres:15-alpine
+    image: postgres:17-alpine
     environment:
       - POSTGRES_DB=bulletcloud
       - POSTGRES_USER=postgres
