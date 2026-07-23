@@ -1,7 +1,7 @@
 package addresses
 
 import (
-	"bullet-cloud-api/internal/models"
+	"bullet-commerce/internal/models"
 	"context"
 
 	"github.com/google/uuid"
@@ -121,6 +121,34 @@ func (_m *MockAddressRepository) Delete(ctx context.Context, userID, addressID u
 
 // SetDefault provides a mock function with given fields: ctx, userID, addressID
 func (_m *MockAddressRepository) SetDefault(ctx context.Context, userID, addressID uuid.UUID) error {
+	ret := _m.Called(ctx, userID, addressID)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID) error); ok {
+		r0 = rf(ctx, userID, addressID)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// SetDefaultBilling provides a mock function with given fields: ctx, userID, addressID
+func (_m *MockAddressRepository) SetDefaultBilling(ctx context.Context, userID, addressID uuid.UUID) error {
+	ret := _m.Called(ctx, userID, addressID)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, uuid.UUID) error); ok {
+		r0 = rf(ctx, userID, addressID)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// SetDefaultShipping provides a mock function with given fields: ctx, userID, addressID
+func (_m *MockAddressRepository) SetDefaultShipping(ctx context.Context, userID, addressID uuid.UUID) error {
 	ret := _m.Called(ctx, userID, addressID)
 
 	var r0 error

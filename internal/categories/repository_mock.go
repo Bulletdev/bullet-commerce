@@ -1,7 +1,7 @@
 package categories
 
 import (
-	"bullet-cloud-api/internal/models"
+	"bullet-commerce/internal/models"
 	"context"
 
 	"github.com/google/uuid"

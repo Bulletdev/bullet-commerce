@@ -1,7 +1,7 @@
 package users
 
 import (
-	"bullet-cloud-api/internal/models"
+	"bullet-commerce/internal/models"
 	"context"
 	"errors"
 
@@ -11,110 +11,116 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+// DBPool is the subset of pgxpool.Pool used by this package — satisfied by
+// both *pgxpool.Pool in production and pgxmock.PgxPoolIface in tests.
+type DBPool interface {
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
+}
+
 var (
 	ErrUserNotFound       = errors.New("user not found")
 	ErrEmailAlreadyExists = errors.New("email already exists")
 )
 
-// UserRepository defines the interface for user data operations.
 type UserRepository interface {
 	Create(ctx context.Context, name, email, passwordHash string) (*models.User, error)
 	FindByEmail(ctx context.Context, email string) (*models.User, error)
 	FindByID(ctx context.Context, id uuid.UUID) (*models.User, error)
+	Update(ctx context.Context, id uuid.UUID, name, email string, cpf *string) (*models.User, error)
 }
 
-// postgresUserRepository implements UserRepository using PostgreSQL.
 type postgresUserRepository struct {
-	db *pgxpool.Pool
+	db DBPool
 }
 
-// NewPostgresUserRepository creates a new instance of postgresUserRepository.
 func NewPostgresUserRepository(db *pgxpool.Pool) UserRepository {
 	return &postgresUserRepository{db: db}
 }
 
-// Create inserts a new user into the database.
 func (r *postgresUserRepository) Create(ctx context.Context, name, email, passwordHash string) (*models.User, error) {
 	query := `
 		INSERT INTO users (name, email, password_hash)
 		VALUES ($1, $2, $3)
-		RETURNING id, name, email, created_at, updated_at
+		RETURNING id, name, email, cpf, role, created_at, updated_at
 	`
 	user := &models.User{}
 	err := r.db.QueryRow(ctx, query, name, email, passwordHash).Scan(
-		&user.ID,
-		&user.Name,
-		&user.Email,
-		&user.CreatedAt,
-		&user.UpdatedAt,
+		&user.ID, &user.Name, &user.Email, &user.CPF, &user.Role,
+		&user.CreatedAt, &user.UpdatedAt,
 	)
-
 	if err != nil {
 		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) {
-			// Check for unique constraint violation (duplicate email)
-			// PostgreSQL unique_violation error code is "23505"
-			if pgErr.Code == "23505" {
-				return nil, ErrEmailAlreadyExists
-			}
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return nil, ErrEmailAlreadyExists
 		}
-		return nil, err // Return other errors as is
+		return nil, err
 	}
-
-	user.PasswordHash = "" // Ensure password hash is not returned
 	return user, nil
 }
 
-// FindByEmail retrieves a user by their email address.
 func (r *postgresUserRepository) FindByEmail(ctx context.Context, email string) (*models.User, error) {
 	query := `
-		SELECT id, name, email, password_hash, created_at, updated_at
+		SELECT id, name, email, cpf, role, password_hash, created_at, updated_at
 		FROM users
 		WHERE email = $1
 	`
 	user := &models.User{}
 	err := r.db.QueryRow(ctx, query, email).Scan(
-		&user.ID,
-		&user.Name,
-		&user.Email,
-		&user.PasswordHash,
-		&user.CreatedAt,
-		&user.UpdatedAt,
+		&user.ID, &user.Name, &user.Email, &user.CPF, &user.Role,
+		&user.PasswordHash, &user.CreatedAt, &user.UpdatedAt,
 	)
-
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrUserNotFound
 		}
 		return nil, err
 	}
-
 	return user, nil
 }
 
-// FindByID retrieves a user by their ID.
 func (r *postgresUserRepository) FindByID(ctx context.Context, id uuid.UUID) (*models.User, error) {
 	query := `
-		SELECT id, name, email, password_hash, created_at, updated_at
+		SELECT id, name, email, cpf, role, password_hash, created_at, updated_at
 		FROM users
 		WHERE id = $1
 	`
 	user := &models.User{}
 	err := r.db.QueryRow(ctx, query, id).Scan(
-		&user.ID,
-		&user.Name,
-		&user.Email,
-		&user.PasswordHash,
-		&user.CreatedAt,
-		&user.UpdatedAt,
+		&user.ID, &user.Name, &user.Email, &user.CPF, &user.Role,
+		&user.PasswordHash, &user.CreatedAt, &user.UpdatedAt,
 	)
-
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrUserNotFound
 		}
 		return nil, err
 	}
+	return user, nil
+}
 
+func (r *postgresUserRepository) Update(ctx context.Context, id uuid.UUID, name, email string, cpf *string) (*models.User, error) {
+	query := `
+		UPDATE users
+		SET name = $1, email = $2, cpf = $3, updated_at = NOW()
+		WHERE id = $4
+		RETURNING id, name, email, cpf, role, created_at, updated_at
+	`
+	user := &models.User{}
+	err := r.db.QueryRow(ctx, query, name, email, cpf, id).Scan(
+		&user.ID, &user.Name, &user.Email, &user.CPF, &user.Role,
+		&user.CreatedAt, &user.UpdatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrUserNotFound
+		}
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return nil, ErrEmailAlreadyExists
+		}
+		return nil, err
+	}
 	return user, nil
 }

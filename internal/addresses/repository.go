@@ -1,14 +1,22 @@
 package addresses
 
 import (
-	"bullet-cloud-api/internal/models"
+	"bullet-commerce/internal/models"
 	"context"
 	"errors"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+type DBPool interface {
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
+	Begin(ctx context.Context) (pgx.Tx, error)
+}
 
 var (
 	ErrAddressNotFound = errors.New("address not found")
@@ -23,14 +31,15 @@ type AddressRepository interface {
 	Update(ctx context.Context, userID, addressID uuid.UUID, address *models.Address) (*models.Address, error)
 	Delete(ctx context.Context, userID, addressID uuid.UUID) error
 	SetDefault(ctx context.Context, userID, addressID uuid.UUID) error
+	SetDefaultBilling(ctx context.Context, userID, addressID uuid.UUID) error
+	SetDefaultShipping(ctx context.Context, userID, addressID uuid.UUID) error
 }
 
 // postgresAddressRepository implements AddressRepository using PostgreSQL.
 type postgresAddressRepository struct {
-	db *pgxpool.Pool
+	db DBPool
 }
 
-// NewPostgresAddressRepository creates a new instance of postgresAddressRepository.
 func NewPostgresAddressRepository(db *pgxpool.Pool) AddressRepository {
 	return &postgresAddressRepository{db: db}
 }
@@ -70,7 +79,7 @@ func (r *postgresAddressRepository) Create(ctx context.Context, address *models.
 // FindByUserID retrieves all addresses for a specific user.
 func (r *postgresAddressRepository) FindByUserID(ctx context.Context, userID uuid.UUID) ([]models.Address, error) {
 	query := `
-		SELECT id, user_id, street, city, state, postal_code, country, is_default, created_at, updated_at
+		SELECT id, user_id, street, city, state, postal_code, country, is_default, is_default_billing, is_default_shipping, created_at, updated_at
 		FROM addresses
 		WHERE user_id = $1
 		ORDER BY is_default DESC, created_at DESC -- Show default first, then newest
@@ -92,7 +101,7 @@ func (r *postgresAddressRepository) FindByUserID(ctx context.Context, userID uui
 // FindByUserAndID retrieves a specific address for a specific user.
 func (r *postgresAddressRepository) FindByUserAndID(ctx context.Context, userID, addressID uuid.UUID) (*models.Address, error) {
 	query := `
-		SELECT id, user_id, street, city, state, postal_code, country, is_default, created_at, updated_at
+		SELECT id, user_id, street, city, state, postal_code, country, is_default, is_default_billing, is_default_shipping, created_at, updated_at
 		FROM addresses
 		WHERE id = $1 AND user_id = $2
 	`
@@ -106,6 +115,8 @@ func (r *postgresAddressRepository) FindByUserAndID(ctx context.Context, userID,
 		&address.PostalCode,
 		&address.Country,
 		&address.IsDefault,
+		&address.IsDefaultBilling,
+		&address.IsDefaultShipping,
 		&address.CreatedAt,
 		&address.UpdatedAt,
 	)
@@ -201,6 +212,59 @@ func (r *postgresAddressRepository) SetDefault(ctx context.Context, userID, addr
 	}
 
 	return tx.Commit(ctx) // Commit the transaction
+}
+
+// SetDefaultBilling marks a specific address as the user's default billing address.
+// Unset and set run in one transaction so the per-user single-billing-default invariant
+// is never briefly violated (which the partial unique index would otherwise reject).
+func (r *postgresAddressRepository) SetDefaultBilling(ctx context.Context, userID, addressID uuid.UUID) error {
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	unsetQuery := `UPDATE addresses SET is_default_billing = false WHERE user_id = $1 AND is_default_billing = true`
+	if _, err = tx.Exec(ctx, unsetQuery, userID); err != nil {
+		return err
+	}
+
+	setQuery := `UPDATE addresses SET is_default_billing = true, updated_at = NOW() WHERE id = $1 AND user_id = $2`
+	result, err := tx.Exec(ctx, setQuery, addressID, userID)
+	if err != nil {
+		return err
+	}
+	if result.RowsAffected() == 0 {
+		return ErrAddressNotFound
+	}
+
+	return tx.Commit(ctx)
+}
+
+// SetDefaultShipping marks a specific address as the user's default shipping address.
+// Independent from billing: changing the shipping default leaves the billing default untouched.
+func (r *postgresAddressRepository) SetDefaultShipping(ctx context.Context, userID, addressID uuid.UUID) error {
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	unsetQuery := `UPDATE addresses SET is_default_shipping = false WHERE user_id = $1 AND is_default_shipping = true`
+	if _, err = tx.Exec(ctx, unsetQuery, userID); err != nil {
+		return err
+	}
+
+	setQuery := `UPDATE addresses SET is_default_shipping = true, updated_at = NOW() WHERE id = $1 AND user_id = $2`
+	result, err := tx.Exec(ctx, setQuery, addressID, userID)
+	if err != nil {
+		return err
+	}
+	if result.RowsAffected() == 0 {
+		return ErrAddressNotFound
+	}
+
+	return tx.Commit(ctx)
 }
 
 // unsetDefaultAddresses is a helper to set is_default=false for all addresses of a user.

@@ -1,48 +1,38 @@
 package handlers
 
 import (
-	"bullet-cloud-api/internal/addresses"
-	"bullet-cloud-api/internal/auth" // For UserIDContextKey
-	"bullet-cloud-api/internal/models"
-	// For User model
-	"bullet-cloud-api/internal/users"    // For UserRepository
-	"bullet-cloud-api/internal/webutils" // For JSON helpers
+	"bullet-commerce/internal/addresses"
+	"bullet-commerce/internal/auth"
+	"bullet-commerce/internal/models"
+	"bullet-commerce/internal/users"
+	"bullet-commerce/internal/webutils"
 	"errors"
-	"log" // Adicionado para log
+	"log/slog"
 	"net/http"
 
 	"github.com/google/uuid"
-	"github.com/gorilla/mux" // Adicionado
+	"github.com/gorilla/mux"
 )
 
-// UserHandler handles user-related requests, including addresses.
 type UserHandler struct {
 	UserRepo    users.UserRepository
-	AddressRepo addresses.AddressRepository // Adicionado
+	AddressRepo addresses.AddressRepository
 }
 
-// NewUserHandler creates a new UserHandler.
-func NewUserHandler(userRepo users.UserRepository, addressRepo addresses.AddressRepository) *UserHandler { // Adicionado addressRepo
-	return &UserHandler{
-		UserRepo:    userRepo,
-		AddressRepo: addressRepo, // Adicionado
-	}
+func NewUserHandler(userRepo users.UserRepository, addressRepo addresses.AddressRepository) *UserHandler {
+	return &UserHandler{UserRepo: userRepo, AddressRepo: addressRepo}
 }
 
-// Helper function to get authenticated user ID from context
 func getAuthenticatedUserID(r *http.Request) (uuid.UUID, error) {
 	userIDValue := r.Context().Value(auth.UserIDContextKey)
 	userID, ok := userIDValue.(uuid.UUID)
 	if !ok {
-		// Log this serious issue
-		log.Printf("ERROR: User ID not found or not UUID in context for path %s", r.URL.Path)
+		slog.Error("user ID not found in context", "path", r.URL.Path)
 		return uuid.Nil, errors.New("authentication context error")
 	}
 	return userID, nil
 }
 
-// Helper function to check if the authenticated user matches the user ID in the URL
-// Returns the target user ID if authorized, otherwise writes an error and returns Nil UUID.
 func checkUserAuthorization(w http.ResponseWriter, r *http.Request, targetUserIDStr string) (uuid.UUID, bool) {
 	authUserID, err := getAuthenticatedUserID(r)
 	if err != nil {
@@ -56,8 +46,6 @@ func checkUserAuthorization(w http.ResponseWriter, r *http.Request, targetUserID
 		return uuid.Nil, false
 	}
 
-	// For now, only allow users to access their own data
-	// TODO: Implement admin role check here if needed for accessing other users' data
 	if authUserID != targetUserID {
 		webutils.ErrorJSON(w, errors.New("forbidden"), http.StatusForbidden)
 		return uuid.Nil, false
@@ -66,7 +54,6 @@ func checkUserAuthorization(w http.ResponseWriter, r *http.Request, targetUserID
 	return targetUserID, true
 }
 
-// GetMe handles requests for the current user's information.
 func (h *UserHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 	authUserID, err := getAuthenticatedUserID(r)
 	if err != nil {
@@ -88,30 +75,47 @@ func (h *UserHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 	webutils.WriteJSON(w, http.StatusOK, user)
 }
 
-// --- Address Handlers ---
-
-// ListAddresses handles GET /api/users/{userId}/addresses
-func (h *UserHandler) ListAddresses(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	targetUserIDStr := vars["userId"]
-
-	// Check if the authenticated user is authorized to view these addresses
-	targetUserID, authorized := checkUserAuthorization(w, r, targetUserIDStr)
-	if !authorized {
-		return
-	}
-
-	addressList, err := h.AddressRepo.FindByUserID(r.Context(), targetUserID)
-	if err != nil {
-		webutils.ErrorJSON(w, errors.New("failed to retrieve addresses"), http.StatusInternalServerError)
-		return
-	}
-
-	webutils.WriteJSON(w, http.StatusOK, addressList)
+type UpdateUserRequest struct {
+	Name  string  `json:"name"`
+	Email string  `json:"email"`
+	CPF   *string `json:"cpf"`
 }
 
-// AddAddress handles POST /api/users/{userId}/addresses
-type AddAddressRequest struct {
+func (h *UserHandler) UpdateMe(w http.ResponseWriter, r *http.Request) {
+	authUserID, err := getAuthenticatedUserID(r)
+	if err != nil {
+		webutils.ErrorJSON(w, err, http.StatusInternalServerError)
+		return
+	}
+
+	var req UpdateUserRequest
+	if err := webutils.ReadJSON(r, &req); err != nil {
+		webutils.ErrorJSON(w, errors.New("invalid request body"), http.StatusBadRequest)
+		return
+	}
+
+	if req.Name == "" || req.Email == "" {
+		webutils.ErrorJSON(w, errors.New("name and email are required"), http.StatusBadRequest)
+		return
+	}
+
+	updated, err := h.UserRepo.Update(r.Context(), authUserID, req.Name, req.Email, req.CPF)
+	if err != nil {
+		if errors.Is(err, users.ErrUserNotFound) {
+			webutils.ErrorJSON(w, errors.New("user not found"), http.StatusNotFound)
+		} else if errors.Is(err, users.ErrEmailAlreadyExists) {
+			webutils.ErrorJSON(w, errors.New("email already in use"), http.StatusConflict)
+		} else {
+			webutils.ErrorJSON(w, errors.New("failed to update user"), http.StatusInternalServerError)
+		}
+		return
+	}
+
+	updated.PasswordHash = ""
+	webutils.WriteJSON(w, http.StatusOK, updated)
+}
+
+type AddressRequest struct {
 	Street     string `json:"street"`
 	City       string `json:"city"`
 	State      string `json:"state"`
@@ -120,29 +124,39 @@ type AddAddressRequest struct {
 	IsDefault  bool   `json:"is_default"`
 }
 
-func (h *UserHandler) AddAddress(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	targetUserIDStr := vars["userId"]
-
-	// Check authorization
-	targetUserID, authorized := checkUserAuthorization(w, r, targetUserIDStr)
+func (h *UserHandler) ListAddresses(w http.ResponseWriter, r *http.Request) {
+	targetUserID, authorized := checkUserAuthorization(w, r, mux.Vars(r)["userId"])
 	if !authorized {
 		return
 	}
 
-	var req AddAddressRequest
+	list, err := h.AddressRepo.FindByUserID(r.Context(), targetUserID)
+	if err != nil {
+		webutils.ErrorJSON(w, errors.New("failed to retrieve addresses"), http.StatusInternalServerError)
+		return
+	}
+
+	webutils.WriteJSON(w, http.StatusOK, list)
+}
+
+func (h *UserHandler) AddAddress(w http.ResponseWriter, r *http.Request) {
+	targetUserID, authorized := checkUserAuthorization(w, r, mux.Vars(r)["userId"])
+	if !authorized {
+		return
+	}
+
+	var req AddressRequest
 	if err := webutils.ReadJSON(r, &req); err != nil {
 		webutils.ErrorJSON(w, errors.New("invalid request body"), http.StatusBadRequest)
 		return
 	}
 
-	// Basic Validation
 	if req.Street == "" || req.City == "" || req.State == "" || req.PostalCode == "" || req.Country == "" {
 		webutils.ErrorJSON(w, errors.New("all address fields are required"), http.StatusBadRequest)
 		return
 	}
 
-	newAddress := &models.Address{
+	created, err := h.AddressRepo.Create(r.Context(), &models.Address{
 		UserID:     targetUserID,
 		Street:     req.Street,
 		City:       req.City,
@@ -150,67 +164,47 @@ func (h *UserHandler) AddAddress(w http.ResponseWriter, r *http.Request) {
 		PostalCode: req.PostalCode,
 		Country:    req.Country,
 		IsDefault:  req.IsDefault,
-	}
-
-	createdAddress, err := h.AddressRepo.Create(r.Context(), newAddress)
+	})
 	if err != nil {
 		webutils.ErrorJSON(w, errors.New("failed to create address"), http.StatusInternalServerError)
 		return
 	}
 
-	webutils.WriteJSON(w, http.StatusCreated, createdAddress)
-}
-
-// UpdateAddress handles PUT /api/users/{userId}/addresses/{addressId}
-type UpdateAddressRequest struct {
-	Street     string `json:"street"`
-	City       string `json:"city"`
-	State      string `json:"state"`
-	PostalCode string `json:"postal_code"`
-	Country    string `json:"country"`
-	IsDefault  bool   `json:"is_default"`
+	webutils.WriteJSON(w, http.StatusCreated, created)
 }
 
 func (h *UserHandler) UpdateAddress(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	targetUserIDStr := vars["userId"]
-	addressIDStr := vars["addressId"]
-
-	// Check authorization
-	targetUserID, authorized := checkUserAuthorization(w, r, targetUserIDStr)
+	targetUserID, authorized := checkUserAuthorization(w, r, vars["userId"])
 	if !authorized {
 		return
 	}
 
-	addressID, err := uuid.Parse(addressIDStr)
+	addressID, err := uuid.Parse(vars["addressId"])
 	if err != nil {
 		webutils.ErrorJSON(w, errors.New("invalid address ID format"), http.StatusBadRequest)
 		return
 	}
 
-	var req UpdateAddressRequest
+	var req AddressRequest
 	if err := webutils.ReadJSON(r, &req); err != nil {
 		webutils.ErrorJSON(w, errors.New("invalid request body"), http.StatusBadRequest)
 		return
 	}
 
-	// Basic Validation
 	if req.Street == "" || req.City == "" || req.State == "" || req.PostalCode == "" || req.Country == "" {
 		webutils.ErrorJSON(w, errors.New("all address fields are required"), http.StatusBadRequest)
 		return
 	}
 
-	addressToUpdate := &models.Address{
-		// UserID and ID are used in the repo method query
+	updated, err := h.AddressRepo.Update(r.Context(), targetUserID, addressID, &models.Address{
 		Street:     req.Street,
 		City:       req.City,
 		State:      req.State,
 		PostalCode: req.PostalCode,
 		Country:    req.Country,
 		IsDefault:  req.IsDefault,
-	}
-
-	updatedAddress, err := h.AddressRepo.Update(r.Context(), targetUserID, addressID, addressToUpdate)
+	})
 	if err != nil {
 		if errors.Is(err, addresses.ErrAddressNotFound) {
 			webutils.ErrorJSON(w, err, http.StatusNotFound)
@@ -220,29 +214,23 @@ func (h *UserHandler) UpdateAddress(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	webutils.WriteJSON(w, http.StatusOK, updatedAddress)
+	webutils.WriteJSON(w, http.StatusOK, updated)
 }
 
-// DeleteAddress handles DELETE /api/users/{userId}/addresses/{addressId}
 func (h *UserHandler) DeleteAddress(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	targetUserIDStr := vars["userId"]
-	addressIDStr := vars["addressId"]
-
-	// Check authorization
-	targetUserID, authorized := checkUserAuthorization(w, r, targetUserIDStr)
+	targetUserID, authorized := checkUserAuthorization(w, r, vars["userId"])
 	if !authorized {
 		return
 	}
 
-	addressID, err := uuid.Parse(addressIDStr)
+	addressID, err := uuid.Parse(vars["addressId"])
 	if err != nil {
 		webutils.ErrorJSON(w, errors.New("invalid address ID format"), http.StatusBadRequest)
 		return
 	}
 
-	err = h.AddressRepo.Delete(r.Context(), targetUserID, addressID)
-	if err != nil {
+	if err := h.AddressRepo.Delete(r.Context(), targetUserID, addressID); err != nil {
 		if errors.Is(err, addresses.ErrAddressNotFound) {
 			webutils.ErrorJSON(w, err, http.StatusNotFound)
 		} else {
@@ -251,29 +239,23 @@ func (h *UserHandler) DeleteAddress(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.WriteHeader(http.StatusNoContent) // 204 No Content
+	w.WriteHeader(http.StatusNoContent)
 }
 
-// SetDefaultAddress handles PATCH /api/users/{userId}/addresses/{addressId}/default
 func (h *UserHandler) SetDefaultAddress(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	targetUserIDStr := vars["userId"]
-	addressIDStr := vars["addressId"]
-
-	// Check authorization
-	targetUserID, authorized := checkUserAuthorization(w, r, targetUserIDStr)
+	targetUserID, authorized := checkUserAuthorization(w, r, vars["userId"])
 	if !authorized {
 		return
 	}
 
-	addressID, err := uuid.Parse(addressIDStr)
+	addressID, err := uuid.Parse(vars["addressId"])
 	if err != nil {
 		webutils.ErrorJSON(w, errors.New("invalid address ID format"), http.StatusBadRequest)
 		return
 	}
 
-	err = h.AddressRepo.SetDefault(r.Context(), targetUserID, addressID)
-	if err != nil {
+	if err := h.AddressRepo.SetDefault(r.Context(), targetUserID, addressID); err != nil {
 		if errors.Is(err, addresses.ErrAddressNotFound) {
 			webutils.ErrorJSON(w, err, http.StatusNotFound)
 		} else {
@@ -282,7 +264,55 @@ func (h *UserHandler) SetDefaultAddress(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	w.WriteHeader(http.StatusOK) // Return 200 OK on success
+	w.WriteHeader(http.StatusOK)
 }
 
-// TODO: Implement handler for UpdateUser (PUT /api/users/{id})
+func (h *UserHandler) SetDefaultBillingAddress(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	targetUserID, authorized := checkUserAuthorization(w, r, vars["userId"])
+	if !authorized {
+		return
+	}
+
+	addressID, err := uuid.Parse(vars["addressId"])
+	if err != nil {
+		webutils.ErrorJSON(w, errors.New("invalid address ID format"), http.StatusBadRequest)
+		return
+	}
+
+	if err := h.AddressRepo.SetDefaultBilling(r.Context(), targetUserID, addressID); err != nil {
+		if errors.Is(err, addresses.ErrAddressNotFound) {
+			webutils.ErrorJSON(w, err, http.StatusNotFound)
+		} else {
+			webutils.ErrorJSON(w, errors.New("failed to set default billing address"), http.StatusInternalServerError)
+		}
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+}
+
+func (h *UserHandler) SetDefaultShippingAddress(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	targetUserID, authorized := checkUserAuthorization(w, r, vars["userId"])
+	if !authorized {
+		return
+	}
+
+	addressID, err := uuid.Parse(vars["addressId"])
+	if err != nil {
+		webutils.ErrorJSON(w, errors.New("invalid address ID format"), http.StatusBadRequest)
+		return
+	}
+
+	if err := h.AddressRepo.SetDefaultShipping(r.Context(), targetUserID, addressID); err != nil {
+		if errors.Is(err, addresses.ErrAddressNotFound) {
+			webutils.ErrorJSON(w, err, http.StatusNotFound)
+		} else {
+			webutils.ErrorJSON(w, errors.New("failed to set default shipping address"), http.StatusInternalServerError)
+		}
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+}

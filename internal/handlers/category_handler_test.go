@@ -1,11 +1,11 @@
 package handlers_test
 
 import (
-	"bullet-cloud-api/internal/auth"
-	"bullet-cloud-api/internal/categories"
-	"bullet-cloud-api/internal/handlers"
-	"bullet-cloud-api/internal/models"
-	"bullet-cloud-api/internal/users"
+	"bullet-commerce/internal/auth"
+	"bullet-commerce/internal/categories"
+	"bullet-commerce/internal/handlers"
+	"bullet-commerce/internal/models"
+	"bullet-commerce/internal/users"
 	"context"
 	"errors"
 	"net/http"

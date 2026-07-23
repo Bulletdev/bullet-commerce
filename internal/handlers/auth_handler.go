@@ -1,10 +1,10 @@
 package handlers
 
 import (
-	"bullet-cloud-api/internal/auth"
-	"bullet-cloud-api/internal/models"
-	"bullet-cloud-api/internal/users"
-	"bullet-cloud-api/internal/webutils"
+	"bullet-commerce/internal/auth"
+	"bullet-commerce/internal/models"
+	"bullet-commerce/internal/users"
+	"bullet-commerce/internal/webutils"
 	"context"
 	"encoding/json"
 	"errors"

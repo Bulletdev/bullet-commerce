@@ -1,10 +1,10 @@
 package handlers_test
 
 import (
-	"bullet-cloud-api/internal/addresses"
-	"bullet-cloud-api/internal/handlers"
-	"bullet-cloud-api/internal/models"
-	"bullet-cloud-api/internal/users"
+	"bullet-commerce/internal/addresses"
+	"bullet-commerce/internal/handlers"
+	"bullet-commerce/internal/models"
+	"bullet-commerce/internal/users"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"bullet-cloud-api/internal/auth"
+	"bullet-commerce/internal/auth"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
@@ -43,6 +43,8 @@ func setupUserHandlerTest(t *testing.T) (*MockUserRepository, *MockAddressReposi
 	addressRoutes.HandleFunc("/{addressId:[0-9a-fA-F-]+}", userHandler.UpdateAddress).Methods("PUT")
 	addressRoutes.HandleFunc("/{addressId:[0-9a-fA-F-]+}", userHandler.DeleteAddress).Methods("DELETE")
 	addressRoutes.HandleFunc("/{addressId:[0-9a-fA-F-]+}/default", userHandler.SetDefaultAddress).Methods("POST")
+	addressRoutes.HandleFunc("/{addressId:[0-9a-fA-F-]+}/default/billing", userHandler.SetDefaultBillingAddress).Methods("POST")
+	addressRoutes.HandleFunc("/{addressId:[0-9a-fA-F-]+}/default/shipping", userHandler.SetDefaultShippingAddress).Methods("POST")
 
 	return mockUserRepo, mockAddressRepo, userHandler, router
 }
@@ -787,6 +789,158 @@ func TestUserHandler_DeleteAddress(t *testing.T) {
 				assert.Contains(t, rr.Body.String(), tc.expectedBody)
 			} else {
 				// For other errors, expect JSON
+				require.JSONEq(t, tc.expectedBody, rr.Body.String())
+			}
+
+			mockUserRepo.AssertExpectations(t)
+			mockAddressRepo.AssertExpectations(t)
+		})
+	}
+}
+
+// TestUserHandler_SetDefaultBillingAddress covers the billing-default endpoint. It shares the
+// same auth/validation flow as SetDefaultAddress; the key point is that it drives the
+// independent SetDefaultBilling repository method.
+func TestUserHandler_SetDefaultBillingAddress(t *testing.T) {
+	testUserID := uuid.New()
+	anotherUserID := uuid.New()
+	addressID := uuid.New()
+	testToken, err := generateTestToken(testUserID)
+	require.NoError(t, err)
+	userForToken := &models.User{ID: testUserID}
+
+	tests := []struct {
+		name              string
+		targetUserIDStr   string
+		mockUserReturnMid *models.User
+		mockUserErrMid    error
+		mockRepoErr       error
+		expectedStatus    int
+		expectedBody      string
+	}{
+		{
+			name:              "Success - Set Billing Default for Own Address",
+			targetUserIDStr:   testUserID.String(),
+			mockUserReturnMid: userForToken,
+			expectedStatus:    http.StatusOK,
+		},
+		{
+			name:              "Failure - Another User's Address",
+			targetUserIDStr:   anotherUserID.String(),
+			mockUserReturnMid: userForToken,
+			expectedStatus:    http.StatusForbidden,
+			expectedBody:      `{"error":"forbidden"}`,
+		},
+		{
+			name:              "Failure - Address Not Found",
+			targetUserIDStr:   testUserID.String(),
+			mockUserReturnMid: userForToken,
+			mockRepoErr:       addresses.ErrAddressNotFound,
+			expectedStatus:    http.StatusNotFound,
+			expectedBody:      `{"error":"address not found"}`,
+		},
+		{
+			name:              "Failure - Repository Error",
+			targetUserIDStr:   testUserID.String(),
+			mockUserReturnMid: userForToken,
+			mockRepoErr:       assert.AnError,
+			expectedStatus:    http.StatusInternalServerError,
+			expectedBody:      `{"error":"failed to set default billing address"}`,
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			mockUserRepo, mockAddressRepo, _, router := setupUserHandlerTest(t)
+
+			mockUserRepo.On("FindByID", mock.Anything, testUserID).Return(tc.mockUserReturnMid, tc.mockUserErrMid).Once()
+
+			if tc.expectedStatus != http.StatusForbidden {
+				mockAddressRepo.On("SetDefaultBilling", mock.Anything, testUserID, addressID).Return(tc.mockRepoErr).Once()
+			}
+
+			url := fmt.Sprintf("/api/users/%s/addresses/%s/default/billing", tc.targetUserIDStr, addressID.String())
+			req, _ := http.NewRequest(http.MethodPost, url, nil)
+			req.Header.Set("Authorization", "Bearer "+testToken)
+
+			rr := executeRequestAndAssert(t, router, req, tc.expectedStatus, "")
+			if tc.expectedBody != "" {
+				require.JSONEq(t, tc.expectedBody, rr.Body.String())
+			}
+
+			mockUserRepo.AssertExpectations(t)
+			mockAddressRepo.AssertExpectations(t)
+		})
+	}
+}
+
+// TestUserHandler_SetDefaultShippingAddress is the shipping mirror of the billing test.
+func TestUserHandler_SetDefaultShippingAddress(t *testing.T) {
+	testUserID := uuid.New()
+	anotherUserID := uuid.New()
+	addressID := uuid.New()
+	testToken, err := generateTestToken(testUserID)
+	require.NoError(t, err)
+	userForToken := &models.User{ID: testUserID}
+
+	tests := []struct {
+		name              string
+		targetUserIDStr   string
+		mockUserReturnMid *models.User
+		mockUserErrMid    error
+		mockRepoErr       error
+		expectedStatus    int
+		expectedBody      string
+	}{
+		{
+			name:              "Success - Set Shipping Default for Own Address",
+			targetUserIDStr:   testUserID.String(),
+			mockUserReturnMid: userForToken,
+			expectedStatus:    http.StatusOK,
+		},
+		{
+			name:              "Failure - Another User's Address",
+			targetUserIDStr:   anotherUserID.String(),
+			mockUserReturnMid: userForToken,
+			expectedStatus:    http.StatusForbidden,
+			expectedBody:      `{"error":"forbidden"}`,
+		},
+		{
+			name:              "Failure - Address Not Found",
+			targetUserIDStr:   testUserID.String(),
+			mockUserReturnMid: userForToken,
+			mockRepoErr:       addresses.ErrAddressNotFound,
+			expectedStatus:    http.StatusNotFound,
+			expectedBody:      `{"error":"address not found"}`,
+		},
+		{
+			name:              "Failure - Repository Error",
+			targetUserIDStr:   testUserID.String(),
+			mockUserReturnMid: userForToken,
+			mockRepoErr:       assert.AnError,
+			expectedStatus:    http.StatusInternalServerError,
+			expectedBody:      `{"error":"failed to set default shipping address"}`,
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			mockUserRepo, mockAddressRepo, _, router := setupUserHandlerTest(t)
+
+			mockUserRepo.On("FindByID", mock.Anything, testUserID).Return(tc.mockUserReturnMid, tc.mockUserErrMid).Once()
+
+			if tc.expectedStatus != http.StatusForbidden {
+				mockAddressRepo.On("SetDefaultShipping", mock.Anything, testUserID, addressID).Return(tc.mockRepoErr).Once()
+			}
+
+			url := fmt.Sprintf("/api/users/%s/addresses/%s/default/shipping", tc.targetUserIDStr, addressID.String())
+			req, _ := http.NewRequest(http.MethodPost, url, nil)
+			req.Header.Set("Authorization", "Bearer "+testToken)
+
+			rr := executeRequestAndAssert(t, router, req, tc.expectedStatus, "")
+			if tc.expectedBody != "" {
 				require.JSONEq(t, tc.expectedBody, rr.Body.String())
 			}
 

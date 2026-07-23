@@ -6,7 +6,6 @@ import (
 	"github.com/google/uuid"
 )
 
-// Category represents a product category.
 type Category struct {
 	ID        uuid.UUID `json:"id" db:"id"`
 	Name      string    `json:"name" db:"name"`

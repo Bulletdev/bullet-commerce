@@ -1,9 +1,9 @@
 package handlers_test
 
 import (
-	"bullet-cloud-api/internal/handlers"
-	"bullet-cloud-api/internal/models"
-	"bullet-cloud-api/internal/users"
+	"bullet-commerce/internal/handlers"
+	"bullet-commerce/internal/models"
+	"bullet-commerce/internal/users"
 	"bytes"
 	"encoding/json"
 	"fmt"

@@ -1,7 +1,7 @@
 package categories
 
 import (
-	"bullet-cloud-api/internal/models"
+	"bullet-commerce/internal/models"
 	"context"
 	"errors"
 
@@ -10,6 +10,12 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+type DBPool interface {
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
+}
 
 var (
 	ErrCategoryNotFound   = errors.New("category not found")
@@ -28,10 +34,9 @@ type CategoryRepository interface {
 
 // postgresCategoryRepository implements CategoryRepository using PostgreSQL.
 type postgresCategoryRepository struct {
-	db *pgxpool.Pool
+	db DBPool
 }
 
-// NewPostgresCategoryRepository creates a new instance of postgresCategoryRepository.
 func NewPostgresCategoryRepository(db *pgxpool.Pool) CategoryRepository {
 	return &postgresCategoryRepository{db: db}
 }

@@ -1,9 +1,9 @@
 package handlers
 
 import (
-	"bullet-cloud-api/internal/categories" // Category Repository
-	"bullet-cloud-api/internal/models"
-	"bullet-cloud-api/internal/webutils" // JSON Helpers
+	"bullet-commerce/internal/categories" // Category Repository
+	"bullet-commerce/internal/models"
+	"bullet-commerce/internal/webutils" // JSON Helpers
 	"errors"
 	"net/http"
 
