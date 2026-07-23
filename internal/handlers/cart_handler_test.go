@@ -21,28 +21,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// setupCartTest creates mocks, handler, middleware, and router for cart tests.
-func setupCartTest(t *testing.T) (*MockCartRepository, *MockUserRepository, *MockProductRepository, *handlers.CartHandler, *auth.Middleware, *mux.Router) {
-	mockCartRepo := new(MockCartRepository)
-	// Call the base setup - Capture necessary mocks and router, ignore cart repo from base
-	_, _, router, mockUserRepo, mockProductRepo, _, _, _, _ := setupBaseTest(t)
-
-	cartHandler := handlers.NewCartHandler(mockCartRepo, mockProductRepo, new(variants.MockVariantRepository), promotions.NoopVoucherHandler{})
-
-	// Need authMiddleware instance for protected routes
-	authMiddleware := auth.NewMiddleware(testJwtSecret, mockUserRepo)
-
-	apiV1 := router.PathPrefix("/api").Subrouter()
-	apiV1.Use(authMiddleware.Authenticate)
-	apiV1.HandleFunc("/cart", cartHandler.GetCart).Methods("GET")
-	apiV1.HandleFunc("/cart/items", cartHandler.AddItem).Methods("POST")
-	apiV1.HandleFunc("/cart/items/{variantId:[0-9a-fA-F-]+}", cartHandler.UpdateItem).Methods("PUT")
-	apiV1.HandleFunc("/cart/items/{variantId:[0-9a-fA-F-]+}", cartHandler.DeleteItem).Methods("DELETE")
-	apiV1.HandleFunc("/cart", cartHandler.ClearCart).Methods("DELETE") // Note: DELETE on /api/cart for clearing
-
-	return mockCartRepo, mockUserRepo, mockProductRepo, cartHandler, authMiddleware, router
-}
-
 // TestCartHandler_GetCart tests the GET /api/cart endpoint
 func TestCartHandler_GetCart(t *testing.T) {
 	testUserID := uuid.New()

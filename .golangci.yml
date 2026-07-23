@@ -17,10 +17,18 @@ linters:
       exclude-functions:
         - (net/http.ResponseWriter).Write
         - (*github.com/jackc/pgx/v5.Rows).Close
+        # deferred rollback after commit is a no-op; its error is intentionally ignored
+        - (github.com/jackc/pgx/v5.Tx).Rollback
     gocritic:
+      # opinionated style checks disabled repo-wide (cosmetic, high-volume); the
+      # valuable diagnostic/performance checks stay on.
       disabled-checks:
         - hugeParam
         - rangeValCopy
+        - sprintfQuotedString
+        - elseif
+        - ifElseChain
+        - exitAfterDefer
       enabled-tags:
         - diagnostic
         - performance

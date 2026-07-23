@@ -16,7 +16,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -450,19 +449,6 @@ func assertJSONSubset(t *testing.T, expected, actual any, path string) {
 	}
 }
 
-func setupDummyDbPool(t *testing.T) *pgxpool.Pool {
-	t.Skip("Skipping test requiring DB pool setup")
-	return nil
-}
-
-func mockReturn[T any](args mock.Arguments, index int) T {
-	if args.Get(index) == nil {
-		var zero T
-		return zero
-	}
-	return args.Get(index).(T)
-}
-
 func mockGetOrCreateCartSuccess(m *MockCartRepository, userID uuid.UUID, cart *models.Cart) {
 	m.On("GetOrCreateCartByUserID", mock.Anything, userID).Return(cart, nil).Once()
 }
@@ -489,28 +475,4 @@ func mockAddItemSuccess(m *MockCartRepository, cartID, productID, variantID uuid
 }
 func mockAddItemError(m *MockCartRepository, cartID, productID, variantID uuid.UUID, quantity int, price int64) {
 	m.On("AddItem", mock.Anything, cartID, productID, variantID, quantity, price).Return(nil, assert.AnError).Once()
-}
-func mockRemoveItemSuccess(m *MockCartRepository, cartID, productID uuid.UUID) {
-	m.On("RemoveItem", mock.Anything, cartID, productID).Return(nil).Once()
-}
-func mockRemoveItemNotFound(m *MockCartRepository, cartID, productID uuid.UUID) {
-	m.On("RemoveItem", mock.Anything, cartID, productID).Return(assert.AnError).Once()
-}
-func mockRemoveItemError(m *MockCartRepository, cartID, productID uuid.UUID) {
-	m.On("RemoveItem", mock.Anything, cartID, productID).Return(assert.AnError).Once()
-}
-func mockUpdateItemQuantitySuccess(m *MockCartRepository, cartID, productID uuid.UUID, quantity int, item *models.CartItem) {
-	m.On("UpdateItemQuantity", mock.Anything, cartID, productID, quantity).Return(item, nil).Once()
-}
-func mockUpdateItemQuantityNotFound(m *MockCartRepository, cartID, productID uuid.UUID, quantity int) {
-	m.On("UpdateItemQuantity", mock.Anything, cartID, productID, quantity).Return(nil, assert.AnError).Once()
-}
-func mockUpdateItemQuantityError(m *MockCartRepository, cartID, productID uuid.UUID, quantity int) {
-	m.On("UpdateItemQuantity", mock.Anything, cartID, productID, quantity).Return(nil, assert.AnError).Once()
-}
-func mockClearCartSuccess(m *MockCartRepository, cartID uuid.UUID) {
-	m.On("ClearCart", mock.Anything, cartID).Return(nil).Once()
-}
-func mockClearCartError(m *MockCartRepository, cartID uuid.UUID) {
-	m.On("ClearCart", mock.Anything, cartID).Return(assert.AnError).Once()
 }

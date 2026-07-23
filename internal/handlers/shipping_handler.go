@@ -88,7 +88,9 @@ func LookupCep(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp, err := cepClient.Get("https://viacep.com.br/ws/" + raw + "/json/")
+	// raw is validated by cepRegex above (digits only) and the host is the fixed ViaCEP
+	// endpoint, so the concatenation cannot redirect the request elsewhere.
+	resp, err := cepClient.Get("https://viacep.com.br/ws/" + raw + "/json/") //nolint:gosec // raw is cepRegex-validated; host is fixed
 	if err != nil {
 		webutils.ErrorJSON(w, errors.New("CEP service unavailable"), http.StatusBadGateway)
 		return
