@@ -18,6 +18,7 @@
 
 <div align="center">
 
+[![Codacy Badge](https://api.codacy.com/project/badge/Grade/40bc777f79474eb3b095d9d029d98061)](https://app.codacy.com/gh/Bulletdev/bullet-commerce?utm_source=github.com&utm_medium=referral&utm_content=Bulletdev/bullet-commerce&utm_campaign=Badge_Grade)
 [![CodeQL Advanced](https://github.com/Bulletdev/bullet-commerce/actions/workflows/codeql.yml/badge.svg)](https://github.com/Bulletdev/bullet-commerce/actions/workflows/codeql.yml)
 [![Go](https://github.com/Bulletdev/bullet-commerce/actions/workflows/go.yml/badge.svg)](https://github.com/Bulletdev/bullet-commerce/actions/workflows/go.yml)
 [![Security Scan](https://github.com/Bulletdev/bullet-commerce/actions/workflows/security.yml/badge.svg)](https://github.com/Bulletdev/bullet-commerce/actions/workflows/security.yml)
