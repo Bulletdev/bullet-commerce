@@ -305,6 +305,7 @@ func setupRoutes(cfg *config.Config, h httpHandlers, mw *auth.Middleware) *mux.R
 
 	r.Use(middleware.RequestID)
 	r.Use(middleware.CORS(cfg.AllowedOrigins))
+	r.Use(middleware.SecurityHeaders)
 	r.Use(middleware.BodyLimit(1 << 20)) // 1 MiB
 
 	// Global OPTIONS handler so the CORS middleware intercepts preflight requests

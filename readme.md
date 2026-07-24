@@ -19,8 +19,10 @@
 <div align="center">
 
 [![CodeQL Advanced](https://github.com/Bulletdev/bullet-commerce/actions/workflows/codeql.yml/badge.svg)](https://github.com/Bulletdev/bullet-commerce/actions/workflows/codeql.yml)
+[![Codacy Badge](https://api.codacy.com/project/badge/Grade/40bc777f79474eb3b095d9d029d98061)](https://app.codacy.com/gh/Bulletdev/bullet-commerce?utm_source=github.com&utm_medium=referral&utm_content=Bulletdev/bullet-commerce&utm_campaign=Badge_Grade)
+[![Security Scan](https://github.com/Bulletdev/bullet-commerce/actions/workflows/security.yml/badge.svg)](https://github.com/Bulletdev/bullet-commerce/actions/workflows/security.yml)+
+
 [![Go](https://github.com/Bulletdev/bullet-commerce/actions/workflows/go.yml/badge.svg)](https://github.com/Bulletdev/bullet-commerce/actions/workflows/go.yml)
-[![Security Scan](https://github.com/Bulletdev/bullet-commerce/actions/workflows/security.yml/badge.svg)](https://github.com/Bulletdev/bullet-commerce/actions/workflows/security.yml)
 ![Go Version](https://img.shields.io/github/go-mod/go-version/Bulletdev/bullet-commerce?color=00ADD8&labelColor=000000)
 ![License](https://img.shields.io/badge/license-GPL--3.0-blue)
 
@@ -740,6 +742,35 @@ Per-IP token buckets (in-memory), `429` + `Retry-After` on refusal. The client I
 | Auth | 10 requests / min | `POST /auth/register`, `POST /auth/login` |
 | Checkout | 30 requests / min | `POST/GET /orders`, `GET /orders/{id}`, `PATCH /orders/{id}/cancel`, `POST /orders/{id}/pay` |
 
+### Security Audit (`.pentest/`)
+
+A black-box pentest lab lives in `.pentest/` (bash + curl, plus nuclei/httpx/sqlmap via
+`tools/install.sh`). It boots against a local instance and probes the real attack surface.
+Latest run, every vector defended:
+
+| Vector | Result |
+|---|---|
+| JWT HS256 - `alg:none`, algorithm confusion, weak-secret bruteforce, `sub`/`role` claim tampering, replay | Rejected (`401`) |
+| RBAC - admin routes with a non-admin / anonymous token | `403` / `401` |
+| IDOR - user A reading or mutating user B's orders, addresses, cart | `403` / `404` |
+| SSRF - `/shipping/cep/{cep}` with internal IPs, cloud metadata, decimal/octal IPs, CRLF, full URLs | Rejected (`400`) |
+| Rate-limit bypass via `X-Forwarded-For` / `X-Real-IP` | Not bypassable (limiter keys on `RemoteAddr`) |
+| Mass assignment - `role` / `is_admin` in register and `PUT /users/me` | Ignored, no escalation |
+| Stock oversell - N concurrent orders on the last unit | Exactly one succeeds, no oversell (atomic reserve) |
+| Idempotency - N concurrent `POST /orders` with the same `Idempotency-Key` | Exactly one order, no double reservation |
+| Info disclosure - `.env`, `.git`, `/debug/pprof`, swagger | Nothing served |
+| Security headers | `nosniff`, `X-Frame-Options: DENY`, HSTS, CSP, `Referrer-Policy` (`internal/middleware/security_headers.go`) |
+
+Run it against a local instance (`http://localhost:4444`):
+
+```bash
+cd .pentest
+./tools/install.sh                  # optional: nuclei, httpx, sqlmap
+./scripts/15_full_audit.sh          # every probe in sequence
+./scripts/22_race_conditions.sh     # oversell + idempotency + optimistic-lock races
+./scripts/03_jwt_attacks.sh         # HS256 attacks
+```
+
 ---
 
 ## 09 · Observability
@@ -865,7 +896,7 @@ All actions pinned to commit SHA (supply chain hardening). To update a pin: `git
 
 ```
 ╔══════════════════════════════════════════════════════════════════════════════╗
-║  bullet-commerce                                                                 ║
+║  bullet-commerce                                                             ║
 ║  GNU General Public License v3.0 (GPLv3)                                     ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 ```
